@@ -1,0 +1,2 @@
+# ascend_optimization_scripts
+Ascend社区蓝区优化脚本集
