@@ -104,16 +104,14 @@ class CheckListRemark:
 
     def get_codearts_token(self):
         logging.info("获取codearts token...")
-        user = dict(password=self.password, domain=self.username, name=self.subUsername)
+        user = dict(password=self.password, domain=dict(name=self.username), name=self.subUsername)
         header = {
             "auth": {
                 "identity": {
                     "password": {"user": user},
                     "methods": ["password"]
                 },
-                "scope": {
-                    "project": {"name": "cn-north-4"}
-                }
+                "scope": {"project": {"name": "cn-north-4"}}
             }
         }
         req_get_token = requests.post(url=HWIAMAddr, data=json.dumps(header))
