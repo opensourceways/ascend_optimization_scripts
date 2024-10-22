@@ -74,9 +74,9 @@ class CheckListRemark:
         self.project_id = project_id
         self.pipeline_id = pipeline_id
         self.pipeline_run_id = pipeline_run_id
-        self.username = username,
-        self.subUsername = subUsername,
-        self.password = password,
+        self.username = username
+        self.subUsername = subUsername
+        self.password = password
         self.git_app = GithubApp(token, owner, repo, pr_id)
 
     @staticmethod
@@ -128,6 +128,8 @@ class CheckListRemark:
         for stage in resp_txt["stages"]:
             for j in stage["jobs"]:
                 job_name, status = j["name"], j["status"]
+                if job_name == "统一评论":
+                    break
                 result.append(dict(check_name=job_name, status=status_map.get(status)))
 
         html = self.generate_table(result)
@@ -151,10 +153,11 @@ def init_args():
 
 if __name__ == '__main__':
     args = init_args()
+
     checklist_remark = CheckListRemark(token=args.access_token,
                                        owner=args.owner,
-                                       repo=args.pr_id,
-                                       pr_id=args.repo,
+                                       repo=args.repo,
+                                       pr_id=args.pr_id,
                                        project_id=args.project_id,
                                        pipeline_id=args.pipeline_id,
                                        pipeline_run_id=args.pipeline_run_id,
