@@ -5,7 +5,8 @@ import json
 import requests
 import logging
 
-from config import GithubAddr, check_name_map, PipelineAddr, table_header, table_body, HWIAMAddr
+from config import GithubAddr, check_name_map, PipelineAPI, table_header, table_body, table_body_url, HWIAMAddr, \
+    PipelineUrl
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s: %(message)s")
 
@@ -30,18 +31,21 @@ class GithubApp:
         self.owner = owner
         self.repo = repo
         self.pr_id = pr_id
-        self.msg_remark_url = f'{GithubAddr}/{owner}/{repo}/pulls/{pr_id}/comments'
+        self.msg_remark_url = f'{GithubAddr}/{owner}/{repo}/issues/{pr_id}/comments'
 
     def add_comment(self, msg: str):
         """
         @msg: 评论内容
         """
         logging.info(f"comment url: {self.msg_remark_url}")
-        response = requests.post(self.msg_remark_url, data=dict(access_token=self.token, body=msg))
+        response = requests.post(self.msg_remark_url,
+                                 json=dict(body=msg),
+                                 headers=dict(Authorization=f"token {self.token}")
+                                 )
         if response.status_code in [200, 201, 204]:
             logging.info(f'comment success')
         else:
-            logging.error(f'comment failed')
+            raise ConnectionError("comment fail...")
 
 
 class CheckListRemark:
@@ -98,7 +102,10 @@ class CheckListRemark:
         html = table_header
         for item in items:
             check_name, status = item.get("check_name"), item.get("status")
-            html += table_body.format(check_name, status)
+            if check_name != "流水线链接":
+                html += table_body.format(check_name, status)
+            else:
+                html += table_body_url.format(check_name, status)
         html = html + "</table>"
         return html
 
@@ -115,14 +122,13 @@ class CheckListRemark:
             }
         }
         resp = requests.post(url=HWIAMAddr, data=json.dumps(header))
-        logging.info(resp.text)
         token = resp.headers["X-Subject-Token"]
         return {"x-auth-token": token}
 
     def run(self):
         # job_name_map = self.convert_check_name_map()
         result = []
-        task_url = f'{PipelineAddr}/v5/{self.project_id}/api/pipelines/{self.pipeline_id}/pipeline-runs/detail?pipeline_run_id={self.pipeline_run_id}'
+        task_url = f'{PipelineAPI}/v5/{self.project_id}/api/pipelines/{self.pipeline_id}/pipeline-runs/detail?pipeline_run_id={self.pipeline_run_id}'
         resp = requests.get(url=task_url, headers=self.get_codearts_token())
         resp_txt = json.loads(resp.text)
         for stage in resp_txt["stages"]:
@@ -132,6 +138,8 @@ class CheckListRemark:
                     break
                 result.append(dict(check_name=job_name, status=status_map.get(status)))
 
+        url_addr = f'{PipelineUrl}/{self.project_id}/pipeline/detail/{self.pipeline_id}/{self.pipeline_run_id}'
+        result.append(dict(check_name="流水线链接", status=url_addr))
         html = self.generate_table(result)
         self.git_app.add_comment(html)
 
@@ -165,4 +173,5 @@ if __name__ == '__main__':
                                        subUsername=args.subUsername,
                                        password=args.password,
                                        )
+
     checklist_remark.run()
