@@ -1,2 +1,4 @@
 .idea
 .gitignore
+scripts/__pycache__
+scripts/test*

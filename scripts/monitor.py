@@ -114,8 +114,9 @@ class CheckListRemark:
                 "scope": {"project": {"name": "cn-north-4"}}
             }
         }
-        req_get_token = requests.post(url=HWIAMAddr, data=json.dumps(header))
-        token = req_get_token.headers["X-Subject-Token"]
+        resp = requests.post(url=HWIAMAddr, data=json.dumps(header))
+        logging.info(resp.text)
+        token = resp.headers["X-Subject-Token"]
         return {"x-auth-token": token}
 
     def run(self):
