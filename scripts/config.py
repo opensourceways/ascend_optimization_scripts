@@ -29,7 +29,8 @@ check_name_map = {
     "build": ["build", "Build构建", "pr构建编译"],
 }
 
-GithubAddr = "https://api.github.com/repos"  # Gitee 接口地址
+GithubAddr = "https://api.github.com/repos"  # Github 接口地址
+GiteeAddr = "https://gitee.com/api/v5/repos"  # Gitee 接口地址
 
 # 北京四区
 PipelineAPI = "https://cloudpipeline-ext.cn-north-4.myhuaweicloud.com"  # 流水线API地址

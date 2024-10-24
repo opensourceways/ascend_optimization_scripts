@@ -6,7 +6,7 @@ import requests
 import logging
 
 from config import GithubAddr, check_name_map, PipelineAPI, table_header, table_body, table_body_url, HWIAMAddr, \
-    PipelineUrl
+    PipelineUrl, GiteeAddr
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s: %(message)s")
 
@@ -31,17 +31,26 @@ class GithubApp:
         self.owner = owner
         self.repo = repo
         self.pr_id = pr_id
-        self.msg_remark_url = f'{GithubAddr}/{owner}/{repo}/issues/{pr_id}/comments'
+        self.remark_url = f'{GithubAddr}/{owner}/{repo}/issues/{pr_id}/comments'
+        self.gitee_remark_url = f'{GiteeAddr}/{owner}/{repo}/pulls/{pr_id}/comments'
 
-    def add_comment(self, msg: str):
+    def add_comment(self, msg: str, is_github: bool = True):
         """
         @msg: 评论内容
+        @is_github: 是否是github仓
         """
-        logging.info(f"comment url: {self.msg_remark_url}")
-        response = requests.post(self.msg_remark_url,
-                                 json=dict(body=msg),
-                                 headers=dict(Authorization=f"token {self.token}")
-                                 )
+        if is_github:
+            logging.info(f"comment url: {self.remark_url}")
+            response = requests.post(self.remark_url,
+                                     json=dict(body=msg),
+                                     headers=dict(Authorization=f"token {self.token}")
+                                     )
+        else:
+            logging.info(f"comment url: {self.gitee_remark_url}")
+            response = requests.post(self.gitee_remark_url,
+                                     data=dict(access_token=self.token, boby=msg)
+                                     )
+
         if response.status_code in [200, 201, 204]:
             logging.info(f'comment success')
         else:
@@ -61,6 +70,7 @@ class CheckListRemark:
                  username: str,
                  subUsername: str,
                  password: str,
+                 is_github: str
                  ):
         """
         @token: github token
@@ -70,6 +80,10 @@ class CheckListRemark:
         @project_id: codearts 项目id
         @pipeline_id: codearts 流水线id
         @pipeline_run_id: codearts 流水线任务id
+        @username: codearts 主账户
+        @subUsername: codearts 从账户
+        @password: codearts 密码
+        @is_github: 是否为github仓
         """
         self.token = token
         self.owner = owner
@@ -82,6 +96,7 @@ class CheckListRemark:
         self.subUsername = subUsername
         self.password = password
         self.git_app = GithubApp(token, owner, repo, pr_id)
+        self.is_github = True if is_github.lower() == "true" else False
 
     @staticmethod
     def convert_check_name_map():
@@ -141,7 +156,7 @@ class CheckListRemark:
         url_addr = f'{PipelineUrl}/{self.project_id}/pipeline/detail/{self.pipeline_id}/{self.pipeline_run_id}'
         result.append(dict(check_name="流水线链接", status=url_addr))
         html = self.generate_table(result)
-        self.git_app.add_comment(html)
+        self.git_app.add_comment(html, self.is_github)
 
 
 def init_args():
@@ -156,6 +171,7 @@ def init_args():
     parser.add_argument('--username', help='codearts username', required=True, type=str)
     parser.add_argument('--subUsername', help='codearts subUsername', required=True, type=str)
     parser.add_argument('--password', help='codearts password', required=True, type=str)
+    parser.add_argument('--is_github', help='is github repo', required=True, type=str)
     return parser.parse_args()
 
 
@@ -172,6 +188,7 @@ if __name__ == '__main__':
                                        username=args.username,
                                        subUsername=args.subUsername,
                                        password=args.password,
+                                       is_github=args.is_github,
                                        )
 
     checklist_remark.run()
