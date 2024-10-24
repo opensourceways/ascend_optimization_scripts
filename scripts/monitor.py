@@ -48,7 +48,7 @@ class GithubApp:
         else:
             logging.info(f"comment url: {self.gitee_remark_url}")
             response = requests.post(self.gitee_remark_url,
-                                     data=dict(access_token=self.token, boby=msg)
+                                     data=dict(access_token=self.token, body=msg)
                                      )
 
         if response.status_code in [200, 201, 204]:
