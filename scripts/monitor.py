@@ -1,7 +1,10 @@
 #! -*- coding: utf-8 -*-
 
 import argparse
+import functools
 import json
+import time
+
 import requests
 import logging
 
@@ -11,6 +14,21 @@ from config import GithubAddr, check_name_map, PipelineAPI, table_header, table_
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s: %(message)s")
 
 status_map = dict(COMPLETED="9989", RUNNING="128346", CANCELED="10060", FAILED="10060")
+Retry_times = 3
+
+
+def retry_request(func):
+    @functools.wraps
+    def wrapper(*args, **kwargs):
+        for i in range(Retry_times):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                logging.error(e)
+                logging.info(f"exec {func.__name__} failed {i + 1} times...")
+            time.sleep(5)
+
+    return wrapper
 
 
 class GithubApp:
@@ -34,6 +52,7 @@ class GithubApp:
         self.remark_url = f'{GithubAddr}/{owner}/{repo}/issues/{pr_id}/comments'
         self.gitee_remark_url = f'{GiteeAddr}/{owner}/{repo}/pulls/{pr_id}/comments'
 
+    @retry_request
     def add_comment(self, msg: str, is_github: bool = True):
         """
         @msg: 评论内容
