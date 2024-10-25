@@ -21,6 +21,8 @@ table_body = """
 </tr>
 """
 
+# *********************************  请各位CIE认真阅读以下配置参数并修改  **********************************
+
 # 检查项映射表, key为标准命名
 check_name_map = {
     "sca": ["sca", "codecheck_scan", "CodeSCA", "CodeSCA检查"],
@@ -32,15 +34,12 @@ check_name_map = {
     "build_x86": ["build_x86", "Build_X86"],
 }
 
-GiteeAddr = "https://gitee.com/api/v5/repos/"  # Gitee 接口地址
+OBSName = "mindstudio-pr-log"
+GiteeAddr = "https://gitee.com/api/v5/repos"  # Gitee 接口地址
 
 # 北京四区
 CodeBuildAddr = "https://cloudbuild-ext.cn-north-4.myhuaweicloud.com"  # 编译地址
-PipelineAddr = "https://cloudpipeline-ext.cn-north-4.myhuaweicloud.com"  # 流水线地址
-CodeArtsAddr = "https://devcloud.cn-north-4.huaweicloud.com"
-# HWCloudAddr = "https://auth.huaweicloud.com/authui/federation/websso?domain_id=0d336831568090260fd5c01450729240&idp=OneAcess&protocol=saml"
-HWIAMAddr = "https://iam.cn-north-4.myhuaweicloud.com/v3/auth/tokens"
-
-OBSName = "mindstudio-pr-log"
-
-NA = "N/A"
+CodeartsAPI = "https://cloudpipeline-ext.cn-north-4.myhuaweicloud.com/v5"  # codearts接口前缀
+CodeArtsDomain = "https://devcloud.cn-north-4.huaweicloud.com"  # codearts域名
+HWLoginAPI = "https://iam.cn-north-4.myhuaweicloud.com/v3/auth/tokens"  # 华为云登录地址
+MajunURL = "https://majun.osinfra.cn"  # Majun域名
