@@ -52,7 +52,7 @@ class GithubApp:
         self.remark_url = f'{GithubAddr}/{owner}/{repo}/issues/{pr_id}/comments'
         self.gitee_remark_url = f'{GiteeAddr}/{owner}/{repo}/pulls/{pr_id}/comments'
 
-    @retry_request
+    # @retry_request
     def add_comment(self, msg: str, is_github: bool = True):
         """
         @msg: 评论内容
