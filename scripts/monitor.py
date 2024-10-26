@@ -73,6 +73,7 @@ class GithubApp:
         if response.status_code in [200, 201, 204]:
             logging.info(f'comment success')
         else:
+            logging.info(response.text)
             raise ConnectionError("comment fail...")
 
 
