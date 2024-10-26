@@ -18,7 +18,7 @@ Retry_times = 3
 
 
 def retry_request(func):
-    @functools.wraps
+    @functools.wraps(func)
     def wrapper(*args, **kwargs):
         for i in range(Retry_times):
             try:
