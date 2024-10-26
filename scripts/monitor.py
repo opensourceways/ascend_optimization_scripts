@@ -408,21 +408,26 @@ class ChecklistApp:
         删除历史评论
         :return:
         """
-        data = self.gitee_app.get_comments()
+        data = self.gitee_app.get_comments(desc=True)
         if not data:
             return
 
+        is_recent = True
         for j in data:
             comment, cid = j['body'], j['id']
-            if "流水线任务触发成功" in comment or "流水线任务已触发" in comment:
+            if "流水线任务已触发" in comment:
                 self.gitee_app.del_comment(cid)
+            if "流水线任务触发成功" in comment:
+                if not is_recent:
+                    self.gitee_app.del_comment(cid)
+                is_recent = False
 
     def run(self):
-        # 1. 删除历史评论
-        self.del_history_remark()
-
-        # 2. 获取codearts接口访问token
+        # 1. 获取codearts接口访问token
         headers = self.get_codearts_token()
+
+        # 2. 删除历史评论
+        self.del_history_remark()
 
         # 3. 添加本流水线初始化评论
         comment = f'checklist流水线任务已触发，正在执行，请稍候。<a href="{self.self_url}">任务链接[{self.pipeline_run_id}]</a>'
