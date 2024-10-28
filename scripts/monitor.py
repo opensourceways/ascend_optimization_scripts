@@ -28,6 +28,9 @@ def retry_request(func):
                 is_success = False
                 logging.error(e)
                 logging.info(f"exec {func.__name__} failed {i + 1} times...")
+            finally:
+                if is_success:
+                    break
             time.sleep(5)
 
         if not is_success:
