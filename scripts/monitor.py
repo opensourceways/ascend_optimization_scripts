@@ -20,13 +20,19 @@ Retry_times = 3
 def retry_request(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
+        is_success, res = True, None
         for i in range(Retry_times):
             try:
-                return func(*args, **kwargs)
+                res = func(*args, **kwargs)
             except Exception as e:
+                is_success = False
                 logging.error(e)
                 logging.info(f"exec {func.__name__} failed {i + 1} times...")
             time.sleep(5)
+
+        if not is_success:
+            raise Exception(f"{func.__name__} still fail after try {Retry_times} times...")
+        return res
 
     return wrapper
 
@@ -52,7 +58,7 @@ class GithubApp:
         self.remark_url = f'{GithubAddr}/{owner}/{repo}/issues/{pr_id}/comments'
         self.gitee_remark_url = f'{GiteeAddr}/{owner}/{repo}/pulls/{pr_id}/comments'
 
-    # @retry_request
+    @retry_request
     def add_comment(self, msg: str, is_github: bool = True):
         """
         @msg: 评论内容
