@@ -28,6 +28,10 @@ Retry_times = 3
 
 
 def retry_request(func):
+    """
+    重试装饰器
+    """
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         is_success, res = True, None
@@ -72,7 +76,7 @@ class GiteeApp:
         self.remark_url = f"{self.root_url}/pulls/{self.pr_id}/comments"
 
     @retry_request
-    def get_labels(self, page=1, per_page=100):
+    def get_labels(self, page: int = 1, per_page: int = 100):
         """
         获取repo pr_id 标签
         :param page:
@@ -90,6 +94,11 @@ class GiteeApp:
 
     @retry_request
     def del_labels(self, label: str):
+        """
+        删除某个标签
+        :param label:
+        :return:
+        """
         prefix = f'{self.root_url}/pulls/{self.pr_id}/labels'
         resp = requests.delete(url=f'{prefix}/{label}?access_token={self.token}')
         if resp.status_code not in [200, 201, 204]:
@@ -98,7 +107,8 @@ class GiteeApp:
     @retry_request
     def add_comment(self, msg: str):
         """
-        @msg: 评论内容
+        增加评论
+        :param msg: 评论内容
         """
         logging.info(f"comment url: {self.remark_url}")
         response = requests.post(self.remark_url,
@@ -109,7 +119,14 @@ class GiteeApp:
         logging.info(f'comment success')
 
     @retry_request
-    def get_comments(self, page=1, per_page=100, desc=True):
+    def get_comments(self, page: int = 1, per_page: int = 100, desc: bool = True):
+        """
+        获取评论
+        :param page:
+        :param per_page:
+        :param desc: 是否倒序
+        :return:
+        """
         desc = "desc" if desc else ""
         params = dict(access_token=self.token, page=page, per_page=per_page, direction=desc)
         resp = requests.get(self.remark_url, params=params)
@@ -119,7 +136,12 @@ class GiteeApp:
         raise ConnectionError("request comments failure..")
 
     @retry_request
-    def del_comment(self, comment_id):
+    def del_comment(self, comment_id: str):
+        """
+        删除评论
+        :param comment_id:
+        :return:
+        """
         del_url = f'{self.remark_url}/{comment_id}?access_token={args.access_token}'
         resp = requests.delete(url=del_url)
         if resp.status_code != 200:
@@ -287,7 +309,7 @@ class ChecklistApp:
             shell=True
         )
 
-    def find_majun_url(self, name) -> str:
+    def find_majun_url(self, name: str) -> str:
         """
         从日志中匹配majun的任务链接
         :param name: 任务名称
@@ -302,14 +324,14 @@ class ChecklistApp:
         return ''
 
     @staticmethod
-    def generate_table(items: list, remove_detail):
+    def generate_table(items: list, remove_detail: str):
         """
         将检查项结果转换成html table
         """
         packages = [x.get("package") for x in items]
         has_pkg = bool([x for x in packages if x not in [NA, "", None]])
 
-        remove_flag = True if remove_detail == "true" else False
+        remove_flag = True if remove_detail.lower() == "true" else False
 
         header, body = table_header, table_body
         if not has_pkg:
@@ -379,7 +401,7 @@ class ChecklistApp:
             logging.error(f'请求失败,状态码: {response.status_code},相应阶段: get_plug_in_state')
         return res
 
-    def get_package_link(self, name):
+    def get_package_link(self, name: str):
         """
         获取包链接
         :param name: 任务名称
