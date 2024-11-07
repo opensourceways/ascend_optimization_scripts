@@ -154,6 +154,10 @@ class CheckListRemark:
         return html
 
     def get_codearts_token(self):
+        """
+        获取codearts token信息
+        :return:
+        """
         logging.info("获取codearts token...")
         user = dict(password=self.password, domain=dict(name=self.username), name=self.subUsername)
         header = {
