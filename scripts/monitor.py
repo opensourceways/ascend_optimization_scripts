@@ -58,8 +58,8 @@ class GithubApp:
         self.owner = owner
         self.repo = repo
         self.pr_id = pr_id
-        self.remark_url = f'{GithubAddr}/{owner}/{repo}/issues/{pr_id}/comments'
-        self.gitee_remark_url = f'{GiteeAddr}/{owner}/{repo}/pulls/{pr_id}/comments'
+        self.prefix_url = f'{GithubAddr}/{owner}/{repo}/issues/{pr_id}'
+        self.prefix_gitee_url = f'{GiteeAddr}/{owner}/{repo}/pulls/{pr_id}'
 
     @retry_request
     def add_comment(self, msg: str, is_github: bool = True):
@@ -68,22 +68,76 @@ class GithubApp:
         @is_github: 是否是github仓
         """
         if is_github:
-            logging.info(f"comment url: {self.remark_url}")
-            response = requests.post(self.remark_url,
+            url = f'{self.prefix_url}/comments'
+            logging.info(f"comment url: {url}")
+            response = requests.post(url,
                                      json=dict(body=msg),
                                      headers=dict(Authorization=f"token {self.token}")
                                      )
         else:
-            logging.info(f"comment url: {self.gitee_remark_url}")
-            response = requests.post(self.gitee_remark_url,
+            url = f'{self.prefix_gitee_url}/comments'
+            logging.info(f"comment url: {url}")
+            response = requests.post(url,
                                      data=dict(access_token=self.token, body=msg)
                                      )
 
         if response.status_code in [200, 201, 204]:
-            logging.info(f'comment success')
+            logging.info(f'comment success...')
         else:
             logging.info(response.text)
             raise ConnectionError("comment fail...")
+
+    @retry_request
+    def add_label(self, label: str, is_github: bool = True):
+        """
+        给 pr 添加标签
+        :param is_github:
+        :param label: 要增加的标签的名字
+        :return:
+        """
+        if is_github:
+            url = f'{self.prefix_url}/labels'
+            response = requests.post(url,
+                                     json=dict(labels=[label]),
+                                     headers=dict(Authorization=f"token {self.token}")
+                                     )
+        else:
+            url = f'{self.prefix_gitee_url}/labels?access_token={self.token}'
+            response = requests.post(url,
+                                     json=[label]
+                                     )
+
+        if response.status_code in [200, 201, 204]:
+            logging.info(f"add label: '{label}' success...")
+        else:
+            logging.info(response.text)
+            raise ConnectionError(f"add label '{label}' failure...")
+
+    @retry_request
+    def del_label(self, label: str, is_github: bool = True):
+        """
+        删除 pr 标签
+        :param label: 待删除标签
+        :param is_github:
+        :return:
+        """
+        no_label = "Label does not exist"
+        if is_github:
+            url = f'{self.prefix_url}/labels/{label}'
+            response = requests.delete(url,
+                                       headers=dict(Authorization=f"token {self.token}")
+                                       )
+        else:
+            url = f'{self.prefix_gitee_url}/labels/{label}?access_token={self.token}'
+            response = requests.delete(url)
+
+        if response.status_code in [200, 201, 204]:
+            logging.info(f"delete label: '{label}' success...")
+        elif response.status_code == 404 and response.json().get("message") == no_label:
+            logging.info(f"label '{label}' not exist...")
+        else:
+            logging.info(response.text)
+            raise ConnectionError(f"delete label '{label}' failure...")
 
 
 class CheckListRemark:
@@ -174,8 +228,13 @@ class CheckListRemark:
         return {"x-auth-token": token}
 
     def run(self):
-        # job_name_map = self.convert_check_name_map()
+        label = "gate_check_pass"
+        #  1. 删除历史标签
+        self.git_app.del_label(label)
+
+        # 2. 解析流水线任务结果
         result = []
+        no_failure = True
         task_url = f'{PipelineAPI}/v5/{self.project_id}/api/pipelines/{self.pipeline_id}/pipeline-runs/detail?pipeline_run_id={self.pipeline_run_id}'
         resp = requests.get(url=task_url, headers=self.get_codearts_token())
         resp_txt = json.loads(resp.text)
@@ -184,12 +243,19 @@ class CheckListRemark:
                 job_name, status = j["name"], j["status"]
                 if job_name == "统一评论":
                     break
+                if status != "COMPLETED":
+                    no_failure = False
                 result.append(dict(check_name=job_name, status=status_map.get(status)))
 
+        # 3. 统一评论
         url_addr = f'{PipelineUrl}/{self.project_id}/pipeline/detail/{self.pipeline_id}/{self.pipeline_run_id}'
         result.append(dict(check_name="流水线链接", status=url_addr))
         html = self.generate_table(result)
         self.git_app.add_comment(html, self.is_github)
+
+        # 4. 添加标签
+        if no_failure:
+            self.git_app.add_label(label)
 
 
 def init_args():
