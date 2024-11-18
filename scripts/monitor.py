@@ -121,7 +121,7 @@ class GithubApp:
         :param is_github:
         :return:
         """
-        no_label = "Label does not exist"
+        no_label = ["Label does not exist", "Labels not found"]
         if is_github:
             url = f'{self.prefix_url}/labels/{label}'
             response = requests.delete(url,
@@ -133,7 +133,7 @@ class GithubApp:
 
         if response.status_code in [200, 201, 204]:
             logging.info(f"delete label: '{label}' success...")
-        elif response.status_code == 404 and response.json().get("message") == no_label:
+        elif response.status_code == 404 and response.json().get("message") in no_label:
             logging.info(f"label '{label}' not exist...")
         else:
             logging.info(response.text)
@@ -229,8 +229,8 @@ class CheckListRemark:
 
     def run(self):
         label = "gate_check_pass"
-        #  1. 删除历史标签
-        self.git_app.del_label(label)
+        # #  1. 删除历史标签
+        # self.git_app.del_label(label)
 
         # 2. 解析流水线任务结果
         result = []
