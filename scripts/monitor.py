@@ -207,7 +207,7 @@ class CheckListRemark:
         """
         将检查项结果转换成html table
         """
-        html = table_header.startswith()
+        html = table_header
         for item in items:
             check_name, status, link = item.get("check_name"), item.get("status"), item.get("link")
             if check_name != "流水线链接" and link.startswith("https"):
