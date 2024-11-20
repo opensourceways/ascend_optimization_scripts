@@ -20,7 +20,8 @@ table_body = """
 table_body_pure = """
 <tr>
     <td>{0}</td>
-    <td colspan="2">{1}</td>
+    <td>{1}</td>
+    <td><a href="{2}">查看日志</a></td>
 </tr>
 """
 

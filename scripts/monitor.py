@@ -210,12 +210,12 @@ class CheckListRemark:
         html = table_header
         for item in items:
             check_name, status, link = item.get("check_name"), item.get("status"), item.get("link")
-            if check_name != "流水线链接" and link.startswith("https"):
-                html += table_body.format(check_name, status, link)
-            elif check_name != "流水线链接" and not link.startswith("https"):
-                html += table_body_pure.format(check_name, link)
-            else:
+            if check_name == "DT覆盖率":
+                html += table_body_pure.format(check_name, status, link)
+            elif check_name == "流水线链接":
                 html += table_body_url.format(check_name, status)
+            else:
+                html += table_body.format(check_name, status, link)
         html = html + "</table>"
         return html
 
@@ -420,9 +420,10 @@ class CheckListRemark:
 
                 if "覆盖率" in job_name:
                     rate = self.find_coverage_rate(job_name)
+                    result.pop(-1)
                     result.append(dict(check_name="DT覆盖率",
-                                       status=status_map.get("BLANK"),
-                                       link=rate))
+                                       status=rate,
+                                       link=obs_log_url))
 
         # 2. 统一评论
         url_addr = f'{PipelineUrl}/{self.project_id}/pipeline/detail/{self.pipeline_id}/{self.pipeline_run_id}'
