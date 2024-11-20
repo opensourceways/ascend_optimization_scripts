@@ -333,7 +333,7 @@ class CheckListRemark:
             f"""
             cd /home/logs/{self.repo}/{self.pr_id}
             obsutil config -i={self.ak} -k={self.sk} -e={OBSAddr}
-            obsutil cp {file_path} obs://{OBSName}/{self.repo}/{self.pr_id}/ -rf
+            obsutil cp {file_path} obs://{OBSName}/{self.repo}/{self.pr_id}/ -r -f
             """,
             shell=True
         )
