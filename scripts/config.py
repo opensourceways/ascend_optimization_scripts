@@ -5,6 +5,7 @@ table_header = """
     <tr>
         <th>检查项</th>
         <th>状态</th>
+        <th>日志</th>
     </tr>
 """
 
@@ -20,6 +21,7 @@ table_body_pure = """
 <tr>
     <td>{0}</td>
     <td>{1}</td>
+    <td></td>
 </tr>
 """
 
@@ -27,6 +29,7 @@ table_body_url = """
 <tr>
     <td>{0}</td>
     <td><a href="{1}">点击跳转</a></td>
+    <td></td>
 </tr>
 """
 
