@@ -333,7 +333,7 @@ class CheckListRemark:
             f"""
             cd /home/logs/{self.repo}/{self.pr_id}
             obsutil config -i={self.ak} -k={self.sk} -e={OBSAddr}
-            obsutil cp {file_path} obs://{OBSName}/{self.repo}/{self.pr_id}/ -r -f
+            obsutil cp {file_path} obs://{OBSName}/log/{self.repo}/{self.pr_id}/ -r -f
             """,
             shell=True
         )
@@ -387,7 +387,7 @@ class CheckListRemark:
             for j in stage["jobs"]:
                 job_name, status = j["name"], j["status"]
                 logging.info(f"job name: {job_name}, status: {status}")
-                obs_log_url = f"{OBSDomain}/{OBSName}/{self.repo}/{self.pr_id}/{self.pr_id}_{job_name}.html"
+                obs_log_url = f"{OBSDomain}/log/{self.repo}/{self.pr_id}/{self.pr_id}_{job_name}.html"
 
                 if job_name == "统一评论":
                     break

@@ -20,16 +20,14 @@ table_body = """
 table_body_pure = """
 <tr>
     <td>{0}</td>
-    <td>{1}</td>
-    <td></td>
+    <td colspan="2">{1}</td>
 </tr>
 """
 
 table_body_url = """
 <tr>
     <td>{0}</td>
-    <td><a href="{1}">点击跳转</a></td>
-    <td></td>
+    <td colspan="2"><a href="{1}">点击跳转</a></td>
 </tr>
 """
 
