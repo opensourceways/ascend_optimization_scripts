@@ -12,7 +12,7 @@ import logging
 
 from config import GithubAddr, check_name_map, PipelineAPI, table_header, table_body, table_body_url, HWIAMAddr, \
     PipelineUrl, GiteeAddr, CodeCheckAddr, BuildAddr, OBSDomain, OBSAddr, OBSName, table_body_pure
-from scripts.html_config import CodeCheckHTML, BuildLogHTML
+from html_config import CodeCheckHTML, BuildLogHTML
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s: %(message)s")
 
