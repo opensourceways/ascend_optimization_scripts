@@ -439,8 +439,6 @@ class CheckListRemark:
         if no_failure:
             self.git_app.add_label(label)
 
-        raise Exception("测试日志文件样式，而设定的报错")
-
 
 def init_args():
     parser = argparse.ArgumentParser()
