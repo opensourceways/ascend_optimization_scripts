@@ -416,7 +416,7 @@ class CheckListRemark:
                     no_failure = False
                     item["status"] = status_map.get("FAILED")
             elif "代码检查" in job_name and status != "COMPLETED":
-                item["link"] = "任务失败"
+                item["link"] = "任务失败, 请重试"
             else:
                 log = self.get_build_log(job_id, step_run_id)
                 self.upload_build_log_to_obs(job_name, log)
