@@ -49,8 +49,7 @@ CodeCheckHTML = r"""
 </html>
 """
 
-
-BuildLogHTML = """
+BuildLogHTML = r"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
