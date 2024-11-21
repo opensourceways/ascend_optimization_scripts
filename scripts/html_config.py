@@ -4,12 +4,25 @@ CodeCheckHTML = """
 <head>
     <meta charset="UTF-8">
     <title>代码检查</title>
+    <style>
+        th, td{
+            padding: 8px;
+        }
+        table{
+            background: ghostwhite;
+            margin-left: 40px;
+            margin-top: 40px;
+        }
+        tr{
+            text-align: center;
+        }
+    </style>
 </head>
 <body>
-    <table>
+    <table border="10px" width="30%">
     <tr>
-        <th>检查项</th>
-        <th>结果</th>
+        <th width="40%">检查项</th>
+        <th  width="60%">结果</th>
     </tr>
     <tr>
         <td>致命</td>
@@ -45,9 +58,7 @@ BuildLogHTML = """
     <title>{0}</title>
 </head>
 <body>
-    <p>
-        {1}
-    </p>
+    {1}
 </body>
 </html>
 """
