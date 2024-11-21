@@ -385,48 +385,48 @@ class CheckListRemark:
 
         resp = requests.get(url=task_url, headers=self.headers)
         resp_txt = json.loads(resp.text)
-        for stage in resp_txt["stages"]:
-            for j in stage["jobs"]:
-                job_name, status = j["name"], j["status"]
-                logging.info(f"job name: {job_name}, status: {status}")
+        gate_jobs = resp_txt["stages"][0]["jobs"]
+        for j in gate_jobs:
+            job_name, status = j["name"], j["status"]
+            logging.info(f"job name: {job_name}, status: {status}")
 
-                if job_name == "统一评论":
-                    break
+            if job_name == "统一评论":
+                break
 
-                if status != "COMPLETED":
+            if status != "COMPLETED":
+                no_failure = False
+
+            obs_log_url = f"{OBSDomain}/log/{self.repo}/{self.pr_id}/{self.pr_id}_{job_name}.html"
+            item = {"check_name": job_name, "status": status_map.get(status), "link": obs_log_url}
+
+            # 提取日志
+            step_run_id = j["steps"][0]["id"]
+            job_id = ""
+            for entry in j["steps"][0]["inputs"]:
+                if entry["key"] != "jobId":
+                    continue
+                job_id = entry["value"]
+
+            if "代码检查" in job_name and status == "COMPLETED":
+                log = self.get_codecheck_statistic(job_id)
+                self.upload_codecheck_log_to_obs(job_name, log)
+
+                problems = log.get("severity", {}).get("critical", 0) + log.get("severity", {}).get("major", 0)
+                if problems > 0:
                     no_failure = False
+                    item["status"] = status_map.get("FAILED")
+            elif "代码检查" in job_name and status != "COMPLETED":
+                item["link"] = "codecheck任务失败"
+            else:
+                log = self.get_build_log(job_id, step_run_id)
+                self.upload_build_log_to_obs(job_name, log)
 
-                obs_log_url = f"{OBSDomain}/log/{self.repo}/{self.pr_id}/{self.pr_id}_{job_name}.html"
-                item = {"check_name": job_name, "status": status_map.get(status), "link": obs_log_url}
+            if "覆盖率" in job_name:
+                rate = self.find_coverage_rate(job_name)
+                item["check_name"] = "DT覆盖率"
+                item["status"] = rate
 
-                # 提取日志
-                step_run_id = j["steps"][0]["id"]
-                job_id = ""
-                for entry in j["steps"][0]["inputs"]:
-                    if entry["key"] != "jobId":
-                        continue
-                    job_id = entry["value"]
-
-                if "代码检查" in job_name and status == "COMPLETED":
-                    log = self.get_codecheck_statistic(job_id)
-                    self.upload_codecheck_log_to_obs(job_name, log)
-
-                    problems = log.get("severity", {}).get("critical", 0) + log.get("severity", {}).get("major", 0)
-                    if problems > 0:
-                        no_failure = False
-                        item["status"] = status_map.get("FAILED")
-                elif "代码检查" in job_name and status != "COMPLETED":
-                    item["link"] = "codecheck任务失败"
-                else:
-                    log = self.get_build_log(job_id, step_run_id)
-                    self.upload_build_log_to_obs(job_name, log)
-
-                if "覆盖率" in job_name:
-                    rate = self.find_coverage_rate(job_name)
-                    item["check_name"] = "DT覆盖率"
-                    item["status"] = rate
-
-                result.append(item)
+            result.append(item)
 
         # 2. 统一评论
         url_addr = f'{PipelineUrl}/{self.project_id}/pipeline/detail/{self.pipeline_id}/{self.pipeline_run_id}'
