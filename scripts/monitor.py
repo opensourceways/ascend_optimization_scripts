@@ -215,7 +215,7 @@ class CheckListRemark:
             elif check_name == "流水线链接":
                 html += table_body_url.format(check_name, status)
             elif not link.startswith("https"):
-                html += table_body.replace("<a href='{2}'>查看日志</a>", "{2}").format(check_name, status, link)
+                html += table_body.replace(r'<a href="{2}">查看日志</a>', link).format(check_name, status)
             else:
                 html += table_body.format(check_name, status, link)
         html = html + "</table>"
@@ -421,7 +421,7 @@ class CheckListRemark:
                 log = self.get_build_log(job_id, step_run_id)
                 self.upload_build_log_to_obs(job_name, log)
 
-            if "覆盖率" in job_name:
+            if "覆盖率" in job_name and status == "COMPLETED":
                 rate = self.find_coverage_rate(job_name)
                 item["check_name"] = "DT覆盖率"
                 item["status"] = rate
