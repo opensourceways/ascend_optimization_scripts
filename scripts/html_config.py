@@ -5,17 +5,17 @@ CodeCheckHTML = r"""
     <meta charset="UTF-8">
     <title>代码检查</title>
     <style>
-        th, td\{
+        th, td{{
             padding: 8px;
-        }
-        table\{
+        }}
+        table{{
             background: ghostwhite;
             margin-left: 40px;
             margin-top: 40px;
-        }
-        tr\{
+        }}
+        tr{{
             text-align: center;
-        }
+        }}
     </style>
 </head>
 <body>
