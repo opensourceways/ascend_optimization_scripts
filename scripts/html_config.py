@@ -58,7 +58,9 @@ BuildLogHTML = """
     <title>{0}</title>
 </head>
 <body>
-    {1}
+    <pre>
+        {1}
+    </pre>
 </body>
 </html>
 """
