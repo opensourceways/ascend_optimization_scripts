@@ -416,15 +416,16 @@ class CheckListRemark:
                     no_failure = False
                     item["status"] = status_map.get("FAILED")
             elif "代码检查" in job_name and status != "COMPLETED":
-                item["link"] = "codecheck任务失败"
+                item["link"] = "任务失败"
             else:
                 log = self.get_build_log(job_id, step_run_id)
                 self.upload_build_log_to_obs(job_name, log)
 
-            if "覆盖率" in job_name and status == "COMPLETED":
+            if "覆盖率" in job_name:
                 rate = self.find_coverage_rate(job_name)
-                item["check_name"] = "DT覆盖率"
-                item["status"] = rate
+                if rate:
+                    item["check_name"] = "DT覆盖率"
+                    item["status"] = rate
 
             result.append(item)
 
