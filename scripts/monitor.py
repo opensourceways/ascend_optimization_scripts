@@ -214,6 +214,8 @@ class CheckListRemark:
                 html += table_body_pure.format(check_name, status, link)
             elif check_name == "流水线链接":
                 html += table_body_url.format(check_name, status)
+            elif not link.startswith("https"):
+                html += table_body.replace("<a href='{2}'>查看日志</a>", "{2}").format(check_name, status, link)
             else:
                 html += table_body.format(check_name, status, link)
         html = html + "</table>"
@@ -387,7 +389,6 @@ class CheckListRemark:
             for j in stage["jobs"]:
                 job_name, status = j["name"], j["status"]
                 logging.info(f"job name: {job_name}, status: {status}")
-                obs_log_url = f"{OBSDomain}/log/{self.repo}/{self.pr_id}/{self.pr_id}_{job_name}.html"
 
                 if job_name == "统一评论":
                     break
@@ -395,15 +396,10 @@ class CheckListRemark:
                 if status != "COMPLETED":
                     no_failure = False
 
-                result.append(dict(check_name=job_name,
-                                   status=status_map.get(status),
-                                   link=obs_log_url
-                                   ))
+                obs_log_url = f"{OBSDomain}/log/{self.repo}/{self.pr_id}/{self.pr_id}_{job_name}.html"
+                item = {"check_name": job_name, "status": status_map.get(status), "link": obs_log_url}
 
                 # 提取日志
-                if status not in ["FAILED", "COMPLETED"]:
-                    continue
-
                 step_run_id = j["steps"][0]["id"]
                 job_id = ""
                 for entry in j["steps"][0]["inputs"]:
@@ -411,19 +407,26 @@ class CheckListRemark:
                         continue
                     job_id = entry["value"]
 
-                if "代码检查" in job_name:
+                if "代码检查" in job_name and status == "COMPLETED":
                     log = self.get_codecheck_statistic(job_id)
                     self.upload_codecheck_log_to_obs(job_name, log)
+
+                    problems = log.get("severity", {}).get("critical", 0) + log.get("severity", {}).get("major", 0)
+                    if problems > 0:
+                        no_failure = False
+                        item["status"] = status_map.get("FAILED")
+                elif "代码检查" in job_name and status != "COMPLETED":
+                    item["link"] = "codecheck任务失败"
                 else:
                     log = self.get_build_log(job_id, step_run_id)
                     self.upload_build_log_to_obs(job_name, log)
 
                 if "覆盖率" in job_name:
                     rate = self.find_coverage_rate(job_name)
-                    result.pop(-1)
-                    result.append(dict(check_name="DT覆盖率",
-                                       status=rate,
-                                       link=obs_log_url))
+                    item["check_name"] = "DT覆盖率"
+                    item["status"] = rate
+
+                result.append(item)
 
         # 2. 统一评论
         url_addr = f'{PipelineUrl}/{self.project_id}/pipeline/detail/{self.pipeline_id}/{self.pipeline_run_id}'
@@ -436,7 +439,7 @@ class CheckListRemark:
         if no_failure:
             self.git_app.add_label(label)
 
-        # raise Exception("测试日志文件样式，而设定的报错")
+        raise Exception("测试日志文件样式，而设定的报错")
 
 
 def init_args():
