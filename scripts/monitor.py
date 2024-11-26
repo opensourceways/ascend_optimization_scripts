@@ -373,9 +373,12 @@ class CheckListRemark:
         file_path = f"/home/logs/{self.repo}/{self.pr_id}/{self.pr_id}_{job_name}.html"
         with open(file_path, "r") as f:
             for line in f.readlines():
-                if "COVERAGE=" in line:
+                if "COVERAGE=" in line:  # Go
                     rate = line.split("=")[-1]
                     return f"{rate.strip(' ')}%"
+                elif "Jacoco Coverge:" in line:    # Java
+                    rate = line.split(":")[-1].strip(" ").split(" ")[0]
+                    return rate.strip(" ")
 
     def run(self):
         # 1. 解析流水线任务结果
