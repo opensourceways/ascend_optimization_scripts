@@ -418,8 +418,12 @@ class CheckListRemark:
             elif "代码检查" in job_name and status != "COMPLETED":
                 item["link"] = "任务失败, 请重试"
             else:
-                log = self.get_build_log(job_id, step_run_id)
-                self.upload_build_log_to_obs(job_name, log)
+                try:
+                    log = self.get_build_log(job_id, step_run_id)
+                    self.upload_build_log_to_obs(job_name, log)
+                except Exception as err:
+                    logging.error(err)
+                    item["link"] = ""
 
             if "覆盖率" in job_name:
                 rate = self.find_coverage_rate(job_name)
