@@ -16,7 +16,7 @@ from html_config import CodeCheckHTML, BuildLogHTML
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s: %(message)s")
 
-status_map = dict(COMPLETED="9989", RUNNING="128346", CANCELED="10060", FAILED="10060", BLANK="32")
+status_map = dict(COMPLETED="9989", RUNNING="128346", CANCELED="10060", FAILED="10060", BLANK="32", UNSELECTED="128762")
 Retry_times = 3
 
 
