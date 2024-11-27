@@ -380,6 +380,23 @@ class CheckListRemark:
                     rate = line.split(":")[-1].strip(" ").split(" ")[0]
                     return rate.strip(" ")
 
+    def get_codecheck_task_id(self, branch: str, job_id: str):
+        """
+        :param branch: codecheck分支
+        :param job_id: codecheck分支id
+        :return:
+        """
+        url = f"{CodeCheckAddr}/v3/{self.project_id}/tasks/{job_id}/branches"
+        resp = requests.get(url,
+                            params=dict(page_num=1, page_size=20, offset=1, limit=20),
+                            headers=self.headers
+                            )
+        branch_tasks = resp.json().get("branchTasks", [])
+        for task in branch_tasks:
+            if task.get("branchName") == branch:
+                return task.get("taskId")
+        return job_id
+
     def run(self):
         # 1. 解析流水线任务结果
         result = []
@@ -388,6 +405,7 @@ class CheckListRemark:
 
         resp = requests.get(url=task_url, headers=self.headers)
         resp_txt = json.loads(resp.text)
+        branch = resp_txt.get("sources")[0].get("params").get("build_params").get("target_branch")
         gate_jobs = resp_txt["stages"][0]["jobs"]
         for j in gate_jobs:
             job_name, status = j["name"], j["status"]
@@ -411,6 +429,7 @@ class CheckListRemark:
                 job_id = entry["value"]
 
             if "代码检查" in job_name and status == "COMPLETED":
+                job_id = self.get_codecheck_task_id(branch, job_id)
                 log = self.get_codecheck_statistic(job_id)
                 self.upload_codecheck_log_to_obs(job_name, log)
 
