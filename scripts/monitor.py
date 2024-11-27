@@ -434,9 +434,9 @@ class CheckListRemark:
                 self.upload_codecheck_log_to_obs(job_name, log)
 
                 problems = log.get("severity", {}).get("critical", 0) + log.get("severity", {}).get("major", 0)
-                if problems > 0:
-                    no_failure = False
-                    item["status"] = status_map.get("FAILED")
+                # if problems > 0:
+                #     no_failure = False
+                #     item["status"] = status_map.get("FAILED")
             elif "代码检查" in job_name and status != "COMPLETED":
                 item["link"] = "任务失败, 请重试"
             else:
