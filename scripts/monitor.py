@@ -12,6 +12,7 @@ import logging
 import yaml
 import smtplib
 
+from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from config import GithubAddr, check_name_map, PipelineAPI, table_header, table_body, table_body_url, HWIAMAddr, \
@@ -95,10 +96,14 @@ class GithubApp:
             raise ConnectionError("comment fail...")
 
     @retry_request
-    def send_mail(self, msg: str, host: str, port: str, username: str, password: str, sender: str, mails: list):
-        subject = "checklist_monitor_github 结果通知"
+    def send_mail(self, msg: str, host: str, port: str, username: str, password: str,
+                  sender: str, mails: list, owner: str, repo: str):
+        subject = "%s服务定时检查结果通知" % repo
 
         # 创建邮件
+        now = datetime.now()
+        formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        msg = "https://github.com/%s/%s.git在%s执行的门禁检查结果如下\n" % (owner, repo, formatted_time) + msg
         mail_msg = MIMEMultipart()
         mail_msg['From'] = sender
         mail_msg['To'] = ', '.join(mails)
@@ -541,7 +546,9 @@ class CheckListRemark:
                                              self.smtp_username,
                                              self.smtp_password,
                                              self.smtp_sender,
-                                             mails)
+                                             mails,
+                                             self.owner,
+                                             self.repo)
 
         # 3. 添加标签
         label = "gate_check_pass"
