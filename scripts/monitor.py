@@ -98,7 +98,7 @@ class GithubApp:
     @retry_request
     def send_mail(self, msg: str, host: str, port: str, username: str, password: str,
                   sender: str, mails: list, owner: str, repo: str):
-        subject = "%s服务定时检查结果通知" % repo
+        subject = "%s门禁检查结果通知" % repo
 
         # 创建邮件
         now = datetime.now()
