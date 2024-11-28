@@ -103,7 +103,7 @@ class GithubApp:
         mail_msg['From'] = sender
         mail_msg['To'] = ', '.join(mails)
         mail_msg['Subject'] = subject
-        mail_msg.attach(MIMEText(msg, 'plain'))
+        mail_msg.attach(MIMEText(msg, 'html'))
 
         # 发送邮件
         try:
