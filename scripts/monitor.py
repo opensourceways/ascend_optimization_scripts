@@ -106,19 +106,13 @@ class GithubApp:
 
         # 发送邮件
         try:
-            if int(port) == 465:
-                server = smtplib.SMTP_SSL(host, int(port))
-                server.ehlo()
-                server.login(username, password)
-            else:
-                server = smtplib.SMTP(host, int(port))
-                server.ehlo()
-                server.starttls()
-                server.login(username, password)
+            server = smtplib.SMTP(host, int(port))
+            server.ehlo()
+            server.starttls()
+            server.login(username, password)
             server.sendmail(sender, mails, mail_msg.as_string())
-            print("邮件发送成功")
         except Exception as e:
-            print(f"邮件发送失败: {e}")
+            raise ConnectionError(f"send email failure: {e}")
 
     @retry_request
     def add_label(self, label: str, is_github: bool = True):
