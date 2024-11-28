@@ -106,10 +106,15 @@ class GithubApp:
 
         # 发送邮件
         try:
-            server = smtplib.SMTP(host, int(port))
-            server.ehlo()
-            server.starttls()
-            server.login(username, password)
+            if int(port) == 465:
+                server = smtplib.SMTP_SSL(host, int(port))
+                server.ehlo()
+                server.login(username, password)
+            else:
+                server = smtplib.SMTP(host, int(port))
+                server.ehlo()
+                server.starttls()
+                server.login(username, password)
             server.sendmail(sender, mails, mail_msg.as_string())
         except Exception as e:
             raise ConnectionError(f"send email failure: {e}")
