@@ -7,10 +7,13 @@ import os
 import subprocess
 import time
 import warnings
-
 import requests
 import logging
+import yaml
+import smtplib
 
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from config import GithubAddr, check_name_map, PipelineAPI, table_header, table_body, table_body_url, HWIAMAddr, \
     PipelineUrl, GiteeAddr, CodeCheckAddr, BuildAddr, OBSDomain, OBSAddr, OBSName, table_body_pure
 from html_config import CodeCheckHTML, BuildLogHTML
@@ -92,6 +95,27 @@ class GithubApp:
             raise ConnectionError("comment fail...")
 
     @retry_request
+    def send_mail(self, msg: str, host: str, port: str, username: str, password: str, sender: str, mails: list):
+        subject = "checklist_monitor_github 结果通知"
+
+        # 创建邮件
+        mail_msg = MIMEMultipart()
+        mail_msg['From'] = sender
+        mail_msg['To'] = ', '.join(mails)
+        mail_msg['Subject'] = subject
+        mail_msg.attach(MIMEText(msg, 'plain'))
+
+        # 发送邮件
+        try:
+            server = smtplib.SMTP(host, int(port))
+            server.ehlo()
+            server.starttls()
+            server.login(username, password)
+            server.sendmail(sender, mails, mail_msg.as_string())
+        except Exception as e:
+            raise ConnectionError(f"send email failure: {e}")
+
+    @retry_request
     def add_label(self, label: str, is_github: bool = True):
         """
         给 pr 添加标签
@@ -159,7 +183,12 @@ class CheckListRemark:
                  password: str,
                  ak: str,
                  sk: str,
-                 is_github: str
+                 is_github: str,
+                 smtp_host: str,
+                 smtp_port: str,
+                 smtp_username: str,
+                 smtp_password: str,
+                 smtp_sender: str,
                  ):
         """
         @token: github token
@@ -175,6 +204,11 @@ class CheckListRemark:
         @ak: codearts ak
         @sk: codearts sk
         @is_github: 是否为github仓
+        @smtp_host: smtp host
+        @smtp_port: smtp port
+        @smtp_username: smtp username
+        @smtp_password: smtp password
+        @smtp_sender: smtp sender
         """
         self.token = token
         self.owner = owner
@@ -190,6 +224,11 @@ class CheckListRemark:
         self.sk = sk
         self.git_app = GithubApp(token, owner, repo, pr_id)
         self.is_github = True if is_github.lower() == "true" else False
+        self.smtp_host = smtp_host
+        self.smtp_port = smtp_port
+        self.smtp_username = smtp_username
+        self.smtp_password = smtp_password
+        self.smtp_sender = smtp_sender
         self.headers = self.get_codearts_token(username, subUsername, password)
 
     @staticmethod
@@ -385,7 +424,32 @@ class CheckListRemark:
                     rate = line.split(":")[-1].strip(" ").split(" ")[0]
                     return rate.strip(" ")
 
-    def get_build_actual_task_id(self, job_id: str, step_run_id: str) -> str:
+    def get_receive_mails(self):
+        headers = {
+            'Authorization': f'token {self.token}',
+            'Accept': 'application/vnd.github.v3.raw'  # 请求原始内容
+        }
+        try:
+            yml_url = "https://raw.githubusercontent.com/opensourceways/codearts-ci-config/main/pipeline-config.yml"
+            response = requests.get(yml_url, headers=headers)
+            response.raise_for_status()  # 如果请求失败，抛出异常
+
+            # 解析YAML内容
+            data = yaml.safe_load(response.text)
+
+            # 根据repo名称获取值
+            repo_info = data.get(self.repo, {})
+
+            if repo_info:
+                return repo_info["mail"].replace(" ", "").split(",")
+            else:
+                return []
+        except requests.RequestException as e:
+            return []
+        except yaml.YAMLError as e:
+            return []
+
+    def get_build_actual_task_id(self, job_id: str, step_run_id: str):
         """
         获取codecheck真实运行的job_id
         :param job_id: codecheck分支id
@@ -464,6 +528,15 @@ class CheckListRemark:
         result.append(dict(check_name="流水线链接", status=url_addr))
         html = self.generate_table(result)
         self.git_app.add_comment(html, self.is_github)
+        if not no_failure:
+            mails = self.get_receive_mails()
+            mails and self.git_app.send_mail(html,
+                                             self.smtp_host,
+                                             self.smtp_port,
+                                             self.smtp_username,
+                                             self.smtp_password,
+                                             self.smtp_sender,
+                                             mails)
 
         # 3. 添加标签
         label = "gate_check_pass"
@@ -486,6 +559,11 @@ def init_args():
     parser.add_argument('--ak', help='codearts ak', required=True, type=str)
     parser.add_argument('--sk', help='codearts sk', required=True, type=str)
     parser.add_argument('--is_github', help='is github repo', required=True, type=str)
+    parser.add_argument("--smtp_host", help="smtp host", required=True, type=str)
+    parser.add_argument("--smtp_port", help="smtp port", required=True, type=str)
+    parser.add_argument("--smtp_username", help="smtp username", required=True, type=str)
+    parser.add_argument("--smtp_password", help="smtp password", required=True, type=str)
+    parser.add_argument("--smtp_sender", help="smtp sender", required=True, type=str)
     return parser.parse_args()
 
 
@@ -505,6 +583,11 @@ if __name__ == '__main__':
                                        ak=args.ak,
                                        sk=args.sk,
                                        is_github=args.is_github,
+                                       smtp_host=args.smtp_host,
+                                       smtp_port=args.smtp_port,
+                                       smtp_username=args.smtp_username,
+                                       smtp_password=args.smtp_password,
+                                       smtp_sender=args.smtp_sender,
                                        )
 
     checklist_remark.run()
