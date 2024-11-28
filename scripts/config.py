@@ -1,7 +1,7 @@
 #! -*- coding: utf-8 -*-
 
 table_header = """
-<table style="border-collapse: collapse">
+<table style="border-collapse: collapse" border=1>
     <tr>
         <th>检查项</th>
         <th>状态</th>
