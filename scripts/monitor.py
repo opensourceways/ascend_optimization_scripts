@@ -6,13 +6,13 @@ import json
 import os
 import subprocess
 import time
-from datetime import datetime
-
+import warnings
 import requests
 import logging
 import yaml
 import smtplib
 
+from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from config import GithubAddr, check_name_map, PipelineAPI, table_header, table_body, table_body_url, HWIAMAddr, \
@@ -305,7 +305,8 @@ class CheckListRemark:
         :return:
         """
         url = f"{CodeCheckAddr}/v2/tasks/{task_id}/defects-statistic"
-        response = requests.get(url, headers=self.headers)
+        response = requests.get(url,
+                                headers=self.headers)
         return response.json()
 
     def get_daily_build_number(self, step_run_id):
@@ -314,6 +315,8 @@ class CheckListRemark:
         :param step_run_id:
         :return:
         """
+        warnings.warn("get_daily_build_number is deprecated", DeprecationWarning)
+
         url = f"{PipelineAPI}/v5/{self.project_id}/api/pipelines/{self.pipeline_id}/pipeline-runs/{self.pipeline_run_id}/steps/outputs"
         response = requests.get(url,
                                 params={"step_run_ids": step_run_id},
@@ -331,6 +334,8 @@ class CheckListRemark:
         :param daily_build_number:
         :return:
         """
+        warnings.warn("get_build_number is deprecated", DeprecationWarning)
+
         url = f'{BuildAddr}/v3/jobs/{job_id}/history'
         response = requests.get(url,
                                 params=dict(limit=100, interval=1, offset=0),
@@ -354,8 +359,7 @@ class CheckListRemark:
         :param step_run_id:
         :return:
         """
-        daily_build_number = self.get_daily_build_number(step_run_id)
-        build_number = self.get_build_number(job_id, daily_build_number)
+        build_number = self.get_build_actual_task_id(job_id, step_run_id)
         record_id = self.get_build_record_id(job_id, build_number)
         url = f"{BuildAddr}/v4/{record_id}/download-log"
         response = requests.get(url, headers=self.headers)
@@ -426,7 +430,7 @@ class CheckListRemark:
                 if "COVERAGE=" in line:  # Go
                     rate = line.split("=")[-1]
                     return f"{rate.strip(' ')}%"
-                elif "Jacoco Coverge:" in line:    # Java
+                elif "Jacoco Coverge:" in line:  # Java
                     rate = line.split(":")[-1].strip(" ").split(" ")[0]
                     return rate.strip(" ")
 
@@ -455,22 +459,22 @@ class CheckListRemark:
         except yaml.YAMLError as e:
             return []
 
-    def get_codecheck_task_id(self, branch: str, job_id: str):
+    def get_build_actual_task_id(self, job_id: str, step_run_id: str):
         """
-        :param branch: codecheck分支
+        获取codecheck真实运行的job_id
         :param job_id: codecheck分支id
+        :param step_run_id: 流水线步骤id
         :return:
         """
-        url = f"{CodeCheckAddr}/v3/{self.project_id}/tasks/{job_id}/branches"
-        resp = requests.get(url,
-                            params=dict(page_num=1, page_size=20, offset=1, limit=20),
-                            headers=self.headers
-                            )
-        branch_tasks = resp.json().get("branchTasks", [])
-        for task in branch_tasks:
-            if task.get("branchName") == branch:
-                return task.get("taskId")
-        return job_id
+        url = f'{PipelineAPI}/v5/{self.project_id}/api/pipelines/{self.pipeline_id}/pipeline-runs/{self.pipeline_run_id}/jobs/{job_id}/steps/{step_run_id}/jump-link'
+        response = requests.get(url,
+                                headers=self.headers
+                                )
+
+        link: str = response.json().get("jumpLink", "")
+        j_id = link.split("/defects?")[0].split("/")[-1]
+
+        return j_id if j_id else job_id
 
     def run(self):
         # 1. 解析流水线任务结果
@@ -480,7 +484,6 @@ class CheckListRemark:
 
         resp = requests.get(url=task_url, headers=self.headers)
         resp_txt = json.loads(resp.text)
-        branch = resp_txt.get("sources")[0].get("params").get("build_params").get("target_branch")
         gate_jobs = resp_txt["stages"][0]["jobs"]
         for j in gate_jobs:
             job_name, status = j["name"], j["status"]
@@ -504,7 +507,7 @@ class CheckListRemark:
                 job_id = entry["value"]
 
             if "代码检查" in job_name and status == "COMPLETED":
-                job_id = self.get_codecheck_task_id(branch, job_id)
+                job_id = self.get_build_actual_task_id(job_id, step_run_id)
                 log = self.get_codecheck_statistic(job_id)
                 self.upload_codecheck_log_to_obs(job_name, log)
 
@@ -537,8 +540,15 @@ class CheckListRemark:
         self.git_app.add_comment(html, self.is_github)
         if not no_failure:
             mails = self.get_receive_mails()
-            mails and self.git_app.send_mail(html, self.smtp_host, self.smtp_port, self.smtp_username,
-                                             self.smtp_password, self.smtp_sender, mails, self.owner, self.repo)
+            mails and self.git_app.send_mail(html,
+                                             self.smtp_host,
+                                             self.smtp_port,
+                                             self.smtp_username,
+                                             self.smtp_password,
+                                             self.smtp_sender,
+                                             mails,
+                                             self.owner,
+                                             self.repo)
 
         # 3. 添加标签
         label = "gate_check_pass"
