@@ -6,6 +6,8 @@ import json
 import os
 import subprocess
 import time
+from datetime import datetime
+
 import requests
 import logging
 import yaml
@@ -94,10 +96,14 @@ class GithubApp:
             raise ConnectionError("comment fail...")
 
     @retry_request
-    def send_mail(self, msg: str, host: str, port: str, username: str, password: str, sender: str, mails: list):
-        subject = "checklist_monitor_github 结果通知"
+    def send_mail(self, msg: str, host: str, port: str, username: str, password: str,
+                  sender: str, mails: list, owner: str, repo: str):
+        subject = "%s服务定时检查结果通知" % repo
 
         # 创建邮件
+        now = datetime.now()
+        formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        msg = "https://github.com/%s/%s.git在%s执行的门禁检查结果如下\n" % (owner, repo, formatted_time) + msg
         mail_msg = MIMEMultipart()
         mail_msg['From'] = sender
         mail_msg['To'] = ', '.join(mails)
@@ -531,8 +537,8 @@ class CheckListRemark:
         self.git_app.add_comment(html, self.is_github)
         if not no_failure:
             mails = self.get_receive_mails()
-            mails and self.git_app.send_mail(html, self.smtp_host, self.smtp_port,
-                                             self.smtp_username, self.smtp_password, self.smtp_sender, mails)
+            mails and self.git_app.send_mail(html, self.smtp_host, self.smtp_port, self.smtp_username,
+                                             self.smtp_password, self.smtp_sender, mails, self.owner, self.repo)
 
         # 3. 添加标签
         label = "gate_check_pass"
