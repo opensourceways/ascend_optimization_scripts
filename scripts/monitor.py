@@ -558,7 +558,7 @@ class CheckListRemark:
 
 def init_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--access_token', help='gitub access token', required=True, type=str)
+    parser.add_argument('--access_token', help='github access token', required=True, type=str)
     parser.add_argument('--owner', help='owner', required=True, type=str)
     parser.add_argument('--pr_id', help='pr id', required=True, type=str)
     parser.add_argument('--repo', help='code repo', required=True, type=str)
