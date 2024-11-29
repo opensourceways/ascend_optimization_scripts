@@ -1,3 +1,35 @@
+TableHeader = """
+<table style="border-collapse: collapse" border=1>
+    <tr>
+        <th>检查项</th>
+        <th>状态</th>
+        <th>日志</th>
+    </tr>
+"""
+###################################################
+TableBody = """
+<tr>
+    <td>{0}</td>
+    <td>&#{1};</td>
+    <td><a href="{2}">查看日志</a></td>
+</tr>
+"""
+###################################################
+TableBodyPure = """
+<tr>
+    <td>{0}</td>
+    <td>{1}</td>
+    <td><a href="{2}">查看日志</a></td>
+</tr>
+"""
+###################################################
+TableBodyURL = """
+<tr>
+    <td>{0}</td>
+    <td colspan="2"><a href="{1}">点击跳转</a></td>
+</tr>
+"""
+###################################################
 CodeCheckHTML = r"""
 <!DOCTYPE html>
 <html lang="en">
@@ -44,13 +76,14 @@ CodeCheckHTML = r"""
         <td>问题总数</td>
         <td>{4}</td>
     </tr>
+    <tr>
+        <td colspan="2"><a href="{5}">点击跳转至codecheck任务</a></td>
+    </tr>
 </table>
-<br>
-codecheck 任务链接: <a href="{5}">{6}</a>
 </body>
 </html>
 """
-
+###################################################
 BuildLogHTML = r"""
 <!DOCTYPE html>
 <html lang="en">

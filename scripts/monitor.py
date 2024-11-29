@@ -15,9 +15,9 @@ import smtplib
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from config import GithubAddr, check_name_map, PipelineAPI, table_header, table_body, table_body_url, HWIAMAddr, \
-    PipelineUrl, GiteeAddr, CodeCheckAddr, BuildAddr, OBSDomain, OBSAddr, OBSName, table_body_pure
-from html_config import CodeCheckHTML, BuildLogHTML
+from config import GithubAddr, check_name_map, PipelineAPI, HWIAMAddr, PipelineUrl, GiteeAddr, CodeCheckAddr, \
+    BuildAddr, OBSDomain, OBSAddr, OBSName
+from html_config import CodeCheckHTML, BuildLogHTML, TableHeader, TableBody, TableBodyURL, TableBodyPure
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s: %(message)s")
 
@@ -257,17 +257,17 @@ class CheckListRemark:
         """
         将检查项结果转换成html table
         """
-        html = table_header
+        html = TableHeader
         for item in items:
             check_name, status, link = item.get("check_name"), item.get("status"), item.get("link")
             if check_name == "DT覆盖率":
-                html += table_body_pure.format(check_name, status, link)
+                html += TableBodyPure.format(check_name, status, link)
             elif check_name == "流水线链接":
-                html += table_body_url.format(check_name, status)
+                html += TableBodyURL.format(check_name, status)
             elif not link.startswith("https"):
-                html += table_body.replace(r'<a href="{2}">查看日志</a>', link).format(check_name, status)
+                html += TableBody.replace(r'<a href="{2}">查看日志</a>', link).format(check_name, status)
             else:
-                html += table_body.format(check_name, status, link)
+                html += TableBody.format(check_name, status, link)
         html = html + "</table>"
         return html
 
@@ -402,10 +402,9 @@ class CheckListRemark:
         :param job_link: codecheck任务链接
         :return:
         """
-        job_id = job_link.split("/")[-2]
         severity = log.get("severity")
         values = [severity.get("critical"), severity.get("major"), severity.get("minor"), severity.get("suggestion")]
-        content = CodeCheckHTML.format(*values, sum(values), job_link, job_id)
+        content = CodeCheckHTML.format(*values, sum(values), job_link)
         file_path = self.save_file(job_name, content)
         self.upload_to_obs(file_path)
 
@@ -512,7 +511,7 @@ class CheckListRemark:
                 job_id = self.get_build_actual_task_id(job_id, step_run_id)
                 log = self.get_codecheck_statistic(job_id)
                 url_prefix = PipelineUrl.replace('cicd', 'codechecknew')
-                job_link = f"{url_prefix}/{self.project_id}/codecheck/task/{job_id}/defects"    # codecheck任务链接
+                job_link = f"{url_prefix}/{self.project_id}/codecheck/task/{job_id}/defects"  # codecheck任务链接
                 self.upload_codecheck_log_to_obs(job_name, log, job_link)
 
                 problems = log.get("severity", {}).get("critical", 0) + log.get("severity", {}).get("major", 0)

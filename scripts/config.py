@@ -1,37 +1,5 @@
 #! -*- coding: utf-8 -*-
 
-table_header = """
-<table style="border-collapse: collapse" border=1>
-    <tr>
-        <th>检查项</th>
-        <th>状态</th>
-        <th>日志</th>
-    </tr>
-"""
-
-table_body = """
-<tr>
-    <td>{0}</td>
-    <td>&#{1};</td>
-    <td><a href="{2}">查看日志</a></td>
-</tr>
-"""
-
-table_body_pure = """
-<tr>
-    <td>{0}</td>
-    <td>{1}</td>
-    <td><a href="{2}">查看日志</a></td>
-</tr>
-"""
-
-table_body_url = """
-<tr>
-    <td>{0}</td>
-    <td colspan="2"><a href="{1}">点击跳转</a></td>
-</tr>
-"""
-
 # 检查项映射表, key为标准命名
 check_name_map = {
     "sca": ["sca"],
