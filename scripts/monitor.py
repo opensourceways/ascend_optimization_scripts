@@ -394,16 +394,18 @@ class CheckListRemark:
             shell=True
         )
 
-    def upload_codecheck_log_to_obs(self, job_name: str, log: dict):
+    def upload_codecheck_log_to_obs(self, job_name: str, log: dict, job_link: str):
         """
         上传codecheck日志至obs
         :param job_name: 任务名称
         :param log: 日志内容
+        :param job_link: codecheck任务链接
         :return:
         """
+        job_id = job_link.split("/")[-2]
         severity = log.get("severity")
         values = [severity.get("critical"), severity.get("major"), severity.get("minor"), severity.get("suggestion")]
-        content = CodeCheckHTML.format(*values, sum(values))
+        content = CodeCheckHTML.format(*values, sum(values), job_link, job_id)
         file_path = self.save_file(job_name, content)
         self.upload_to_obs(file_path)
 
@@ -509,7 +511,9 @@ class CheckListRemark:
             if "代码检查" in job_name and status == "COMPLETED":
                 job_id = self.get_build_actual_task_id(job_id, step_run_id)
                 log = self.get_codecheck_statistic(job_id)
-                self.upload_codecheck_log_to_obs(job_name, log)
+                url_prefix = PipelineUrl.replace('cicd', 'codechecknew')
+                job_link = f"{url_prefix}/{self.project_id}/codecheck/task/{job_id}/defects"    # codecheck任务链接
+                self.upload_codecheck_log_to_obs(job_name, log, job_link)
 
                 problems = log.get("severity", {}).get("critical", 0) + log.get("severity", {}).get("major", 0)
                 if problems > 0:

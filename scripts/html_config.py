@@ -45,6 +45,8 @@ CodeCheckHTML = r"""
         <td>{4}</td>
     </tr>
 </table>
+<br>
+codecheck 任务链接: <a href="{5}">{6}</a>
 </body>
 </html>
 """
