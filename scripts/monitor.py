@@ -544,6 +544,7 @@ class CheckListRemark:
         html = self.generate_table(result)
         self.git_app.add_comment(html, self.is_github)
         if not no_failure:
+            logging.info("Codearts Pipeline Failed, Send Email...")
             mails = self.get_receive_mails()
             mails and self.git_app.send_mail(html,
                                              self.smtp_host,
