@@ -2,10 +2,10 @@
 
 import os
 import subprocess
-from datetime import datetime
 import time
 import logging
 import requests
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s: %(message)s")
 
