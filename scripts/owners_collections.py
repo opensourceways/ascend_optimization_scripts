@@ -1,6 +1,8 @@
 #! -*- coding: utf-8 -*-
+
 import os
 import subprocess
+from datetime import datetime
 import time
 import logging
 import requests
@@ -117,9 +119,31 @@ class App:
         with open(f'./{self.enterprise}.txt', 'w+') as f:
             f.writelines(repos)
 
+    def has_new_repo(self, repos: list):
+        """
+        检测是否有新repo
+        :return:
+        """
+        with open(f"./{self.enterprise}.txt", 'r+') as f:
+            lines = f.readlines()
+            already_repos = [x.strip("\n") for x in lines]
+
+            new_repos = list(set(repos) - set(already_repos))
+
+        if not new_repos:
+            return
+
+        new_repos = [x + '\n' for x in new_repos]
+        today = datetime.today().strftime("%Y-%m-%d")
+        os.makedirs("./log", exist_ok=True)
+
+        with open(f"./log/{today}.log", 'r+') as f:
+            f.writelines(new_repos)
+
     def run(self):
         while True:
             repos = self.get_repos()
+            self.has_new_repo(repos)
             self.write_repos_down(repos)
             for repo in repos:
                 if repo != Config.ExcludeRepo:
