@@ -1,6 +1,7 @@
 # ascend_optimization_scripts
 Ascend社区蓝区优化脚本集
 
+## 目录结构
 ```
 |-- tool
 |    | --  collect_git_repo.sh  下载代码仓脚本
