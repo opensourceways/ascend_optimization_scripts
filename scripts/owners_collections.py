@@ -137,7 +137,7 @@ class App:
         today = datetime.today().strftime("%Y-%m-%d")
         os.makedirs("./log", exist_ok=True)
 
-        with open(f"./log/{today}.log", 'r+') as f:
+        with open(f"./log/{today}.log", 'w+') as f:
             f.writelines(new_repos)
 
     def run(self):
