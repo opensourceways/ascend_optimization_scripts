@@ -1,5 +1,7 @@
 #! -*- coding: utf-8 -*-
 
+# *********************************  HTML配置  **********************************
+
 table_header = """
 <table style="border-collapse: collapse">
     <tr>
