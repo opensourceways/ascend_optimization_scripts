@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s: %(me
 
 class Config:
     Enterprise = "ascend"
-    Token = "*****018ba07f30bbcc2241533af****"
+    Token = "****9018ba07f30b**2241533af*****"
     Retry_times = 3
     Trigger = 12  # Hour
     ExcludeRepo = "owners_collections"
@@ -124,7 +124,12 @@ class App:
         检测是否有新repo
         :return:
         """
-        with open(f"./{self.enterprise}.txt", 'r+') as f:
+        path = f"./{self.enterprise}.txt"
+        if not os.path.exists(path):
+            return
+
+        # 读取已有repos
+        with open(path, 'r+') as f:
             lines = f.readlines()
             already_repos = [x.strip("\n") for x in lines]
 
@@ -133,6 +138,7 @@ class App:
         if not new_repos:
             return
 
+        # 将新增的repo写入到log文件中去
         new_repos = [x + '\n' for x in new_repos]
         today = datetime.today().strftime("%Y-%m-%d")
         os.makedirs("./log", exist_ok=True)
