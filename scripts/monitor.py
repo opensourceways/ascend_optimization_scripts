@@ -494,6 +494,9 @@ class CheckListRemark:
             job_name, status = j["name"], j["status"]
             logging.info(f"job name: {job_name}, status: {status}")
 
+            if status == "UNSELECTED":
+                continue
+
             if job_name == "统一评论":
                 break
 
