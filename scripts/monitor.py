@@ -486,6 +486,8 @@ class CheckListRemark:
         task_url = f'{PipelineAPI}/v5/{self.project_id}/api/pipelines/{self.pipeline_id}/pipeline-runs/detail?pipeline_run_id={self.pipeline_run_id}'
 
         resp = requests.get(url=task_url, headers=self.headers)
+
+        logging.info(f"Get pipeline detail status: {resp.status_code}")
         resp_txt = json.loads(resp.text)
         gate_jobs = resp_txt["stages"][0]["jobs"]
         for j in gate_jobs:
@@ -586,7 +588,27 @@ def init_args():
 
 
 if __name__ == '__main__':
-    args = init_args()
+    # args = init_args()
+
+    class args:
+        access_token = "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"
+        owner = "opensourceways"
+        repo = "message-push"
+        pr_id = "16"
+        project_id = "3a76c1785dda4b13a399937d1978f240"
+        pipeline_id = "434e2323aa3e44449b7fe5cc2a24c2b6"
+        pipeline_run_id = "722130ae70024645b0304dc7dcfc0009"
+        username = "freesky-edward"
+        subUsername = "codearts_test"
+        password = "M29EEv6Xjh@kx5WcRqsn"
+        is_github = "true"
+        ak = ""
+        sk = ""
+        smtp_host = ""
+        smtp_port = ""
+        smtp_username = ""
+        smtp_password = ""
+        smtp_sender = ""
 
     checklist_remark = CheckListRemark(token=args.access_token,
                                        owner=args.owner,
