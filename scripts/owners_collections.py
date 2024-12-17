@@ -10,7 +10,7 @@ from datetime import datetime
 from smtplib import SMTP_SSL
 from email.mime.text import MIMEText
 
-from monitor import retry_request
+from tools.utils import retry_decorator
 from conf.email_conf import EmailConf
 from conf.email_conf import OwnersCollectionsConfig as Config
 
@@ -116,13 +116,14 @@ class App:
         with open(f'./{self.enterprise}.txt', 'w+') as f:
             f.writelines(repos)
 
-    @retry_request
+    @retry_decorator
     def send_email(self, repos: list):
         """
         新增代码仓时。需要通知社区CIE
         :param repos:
         :return:
         """
+        logging.info("send email...")
         with open("./conf/email_attention.txt", 'r') as f:
             content = f.read()
 
@@ -173,6 +174,9 @@ class App:
 
         with open(f"./log/{today}.log", 'w+') as f:
             f.writelines(new_repos)
+
+        # 发邮件通知
+        self.send_email(repos)
 
     def run(self):
         while True:

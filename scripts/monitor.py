@@ -7,11 +7,11 @@ import time
 import logging
 import requests
 import argparse
-import functools
 import subprocess
 
 from config import table_header, table_body, GiteeAddr, check_name_map, OBSName, CodeartsAPI, CodeArtsDomain, \
     HWLoginAPI, CodeBuildAddr, MajunURL
+from tools.utils import retry_decorator
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s: %(message)s")
 
@@ -24,34 +24,6 @@ Status_Dict = {
     "CANCELED": dict(code="10060", detail="任务终止，请检查"),
     "FAILED": dict(code="10060", detail="FAILED"),
 }
-Retry_times = 3
-
-
-def retry_request(func):
-    """
-    重试装饰器
-    """
-
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        is_success, res = True, None
-        for i in range(Retry_times):
-            try:
-                res = func(*args, **kwargs)
-            except Exception as e:
-                is_success = False
-                logging.error(e)
-                logging.info(f"exec {func.__name__} failed {i + 1} times...")
-            finally:
-                if is_success:
-                    break
-            time.sleep(5)
-
-        if not is_success:
-            raise Exception(f"{func.__name__} still fail after try {Retry_times} times...")
-        return res
-
-    return wrapper
 
 
 class GiteeApp:
@@ -75,7 +47,7 @@ class GiteeApp:
         self.root_url = f'{GiteeAddr}/{self.owner}/{self.repo}'
         self.remark_url = f"{self.root_url}/pulls/{self.pr_id}/comments"
 
-    @retry_request
+    @retry_decorator
     def get_labels(self, page: int = 1, per_page: int = 100):
         """
         获取repo pr_id 标签
@@ -92,7 +64,7 @@ class GiteeApp:
             raise ConnectionError("get labels fail...")
         return resp.json()
 
-    @retry_request
+    @retry_decorator
     def del_labels(self, label: str):
         """
         删除某个标签
@@ -104,7 +76,7 @@ class GiteeApp:
         if resp.status_code not in [200, 201, 204]:
             raise ConnectionError("get labels fail...")
 
-    @retry_request
+    @retry_decorator
     def add_comment(self, msg: str):
         """
         增加评论
@@ -118,7 +90,7 @@ class GiteeApp:
 
         logging.info(f'comment success')
 
-    @retry_request
+    @retry_decorator
     def get_comments(self, page: int = 1, per_page: int = 100, desc: bool = True):
         """
         获取评论
@@ -135,7 +107,7 @@ class GiteeApp:
             return resp.json()
         raise ConnectionError("request comments failure..")
 
-    @retry_request
+    @retry_decorator
     def del_comment(self, comment_id: str):
         """
         删除评论
