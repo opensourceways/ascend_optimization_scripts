@@ -3,9 +3,9 @@
 class EmailConf:
     SMTP_HOST = "smtp.163.com"
     SMTP_PORT = "465"
-    SMTP_USERNAME = "17625331900@163.com"
-    SMTP_PASSWORD = "XULEYDWOBPCXPZBC"
-    SMTP_SENDER = "17625331900@163.com"
+    SMTP_USERNAME = "*****@163.com"
+    SMTP_PASSWORD = "******"
+    SMTP_SENDER = "****@163.com"
     SMTP_RECEIVER = ";"  # 以;隔开
     EMAIL_SUBJECT = 'Ascend社区新建代码仓提醒'
 
