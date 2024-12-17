@@ -176,7 +176,7 @@ class App:
             f.writelines(new_repos)
 
         # 发邮件通知
-        self.send_email(repos)
+        self.send_email(new_repos)
 
     def run(self):
         while True:
