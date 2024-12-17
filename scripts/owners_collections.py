@@ -7,17 +7,14 @@ import logging
 import requests
 from datetime import datetime
 
+from smtplib import SMTP_SSL
+from email.mime.text import MIMEText
+
+from monitor import retry_request
+from conf.email_conf import EmailConf
+from conf.email_conf import OwnersCollectionsConfig as Config
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s: %(message)s")
-
-
-class Config:
-    Enterprise = "ascend"
-    Token = "****9018ba07f30b**2241533af*****"
-    Retry_times = 3
-    Trigger = 12  # Hour
-    ExcludeRepo = "owners_collections"
-    User = "ascend-ci-bot"
-    TargetFileName = "OWNERS"
 
 
 class App:
@@ -118,6 +115,37 @@ class App:
         repos = [x + '\n' for x in repos]
         with open(f'./{self.enterprise}.txt', 'w+') as f:
             f.writelines(repos)
+
+    @retry_request
+    def send_email(self, repos: list):
+        """
+        新增代码仓时。需要通知社区CIE
+        :param repos:
+        :return:
+        """
+        with open("./conf/email_attention.txt", 'r') as f:
+            content = f.read()
+
+        body = ""
+        for repo in repos:
+            body += f"<p>https://gitee.com/{self.enterprise}/{repo}</p>"
+
+        email_body = content.replace("{{repos}}", body)
+
+        msg = MIMEText(email_body, "html", _charset="utf-8")
+        msg["Subject"] = EmailConf.EMAIL_SUBJECT
+        msg["from"] = EmailConf.SMTP_USERNAME
+        msg["to"] = EmailConf.SMTP_RECEIVER
+
+        with SMTP_SSL(host=EmailConf.SMTP_HOST, port=EmailConf.SMTP_PORT) as smtp:
+            smtp.login(user=EmailConf.SMTP_USERNAME,
+                       password=EmailConf.SMTP_PASSWORD
+                       )
+
+            smtp.sendmail(from_addr=EmailConf.SMTP_USERNAME,
+                          to_addrs=EmailConf.SMTP_RECEIVER.split(";"),
+                          msg=msg.as_string()
+                          )
 
     def has_new_repo(self, repos: list):
         """
