@@ -96,6 +96,7 @@ class App:
         while True:
             logging.info(f"get page {page} repo names...")
             response = requests.get(url, params=params)
+            logging.info(f"get page {page} repo names, status code: {response.status_code}")
             _repos = response.json()
             repos.extend([x.get("full_name").split("/")[-1] for x in _repos])
             total_page = response.headers.get("total_page")
@@ -135,7 +136,7 @@ class App:
 
         msg = MIMEText(email_body, "html", _charset="utf-8")
         msg["Subject"] = EmailConf.EMAIL_SUBJECT
-        msg["from"] = EmailConf.SMTP_USERNAME
+        msg["from"] = EmailConf.SMTP_SENDER
         msg["to"] = EmailConf.SMTP_RECEIVER
 
         with SMTP_SSL(host=EmailConf.SMTP_HOST, port=EmailConf.SMTP_PORT) as smtp:
