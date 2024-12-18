@@ -1,5 +1,5 @@
 <p>Dear CIEs,</p>
-<span>我们检测到Ascend社区有新增新的代码仓:</span>
+<span>我们检测到Ascend社区有新增的代码仓:</span>
 <br/>
 <br/>
 {{repos}}

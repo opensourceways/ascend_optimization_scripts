@@ -3,6 +3,10 @@ Ascend社区蓝区优化脚本集
 
 ## 目录结构
 ```
+|-- conf
+|    | -- email_attention.txt 邮件模板
+|    | -- email_conf.py      邮件通知配置文件
+|
 |-- tool
 |    | --  collect_git_repo.sh  下载代码仓脚本
 |    |
