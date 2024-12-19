@@ -1,3 +1,5 @@
+#! -*- coding: utf-8 -*-
+
 TableHeader = """
 <table style="border-collapse: collapse" border=1>
     <tr>

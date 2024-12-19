@@ -21,11 +21,16 @@ from html_config import CodeCheckHTML, BuildLogHTML, TableHeader, TableBody, Tab
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s: %(message)s")
 
-status_map = dict(COMPLETED="9989", RUNNING="128346", CANCELED="10060", FAILED="10060", BLANK="32", UNSELECTED="128762")
+status_map = dict(COMPLETED="9989",
+                  RUNNING="128346",
+                  CANCELED="10060",
+                  FAILED="10060", BLANK="32",
+                  UNSELECTED="128762")
+
 Retry_times = 3
 
 
-def retry_request(func):
+def retry_decorator(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         is_success, res = True, None
@@ -69,7 +74,7 @@ class GithubApp:
         self.prefix_url = f'{GithubAddr}/{owner}/{repo}/issues/{pr_id}'
         self.prefix_gitee_url = f'{GiteeAddr}/{owner}/{repo}/pulls/{pr_id}'
 
-    @retry_request
+    @retry_decorator
     def add_comment(self, msg: str, is_github: bool = True):
         """
         @msg: 评论内容
@@ -95,7 +100,7 @@ class GithubApp:
             logging.info(response.text)
             raise ConnectionError("comment fail...")
 
-    @retry_request
+    @retry_decorator
     def send_mail(self, msg: str, host: str, port: str, username: str, password: str,
                   sender: str, mails: list, owner: str, repo: str):
         subject = "%s门禁检查结果通知" % repo
@@ -127,7 +132,7 @@ class GithubApp:
         except Exception as e:
             raise ConnectionError(f"send email failure: {e}")
 
-    @retry_request
+    @retry_decorator
     def add_label(self, label: str, is_github: bool = True):
         """
         给 pr 添加标签
@@ -153,7 +158,7 @@ class GithubApp:
             logging.info(response.text)
             raise ConnectionError(f"add label '{label}' failure...")
 
-    @retry_request
+    @retry_decorator
     def del_label(self, label: str, is_github: bool = True):
         """
         删除 pr 标签
