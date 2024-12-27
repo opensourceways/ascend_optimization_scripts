@@ -1,32 +1,60 @@
 #! -*- coding: utf-8 -*-
 
-import os
-import re
-import json
-import time
-import logging
-import requests
 import argparse
+import functools
+import json
+import os
 import subprocess
+import time
+import warnings
+import requests
+import logging
+import yaml
+import smtplib
 
-from config import table_header, table_body, GiteeAddr, check_name_map, OBSName, CodeartsAPI, CodeArtsDomain, \
-    HWLoginAPI, CodeBuildAddr, MajunURL
-from tools.utils import retry_decorator
+from datetime import datetime
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
+from config import GithubAddr, check_name_map, PipelineAPI, HWIAMAddr, PipelineUrl, GiteeAddr, CodeCheckAddr, \
+    BuildAddr, OBSDomain, OBSAddr, OBSName
+from html_config import CodeCheckHTML, BuildLogHTML, TableHeader, TableBody, TableBodyURL, TableBodyPure
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s: %(message)s")
 
-URL_Pattern = re.compile(r"https://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]")
+status_map = dict(COMPLETED="9989",
+                  RUNNING="128346",
+                  CANCELED="10060",
+                  FAILED="10060", BLANK="32",
+                  UNSELECTED="128762")
 
-NA = "N/A"
-Status_Dict = {
-    "COMPLETED": dict(code="9989", detail="SUCCESS"),
-    "RUNNING": dict(code="128346", detail="RUNNING"),
-    "CANCELED": dict(code="10060", detail="任务终止，请检查"),
-    "FAILED": dict(code="10060", detail="FAILED"),
-}
+Retry_times = 3
 
 
-class GiteeApp:
+def retry_decorator(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        is_success, res = True, None
+        for i in range(Retry_times):
+            try:
+                res = func(*args, **kwargs)
+            except Exception as e:
+                is_success = False
+                logging.error(e)
+                logging.info(f"exec {func.__name__} failed {i + 1} times...")
+            finally:
+                if is_success:
+                    break
+            time.sleep(5)
+
+        if not is_success:
+            raise Exception(f"{func.__name__} still fail after try {Retry_times} times...")
+        return res
+
+    return wrapper
+
+
+class GithubApp:
 
     def __init__(self,
                  token: str,
@@ -35,7 +63,7 @@ class GiteeApp:
                  pr_id: str
                  ):
         """
-        @token: gitee token
+        @token: github token
         @owner: 代码仓所属企业
         @repo: 代码仓名称
         @pr_id: 提交pr id
@@ -44,84 +72,89 @@ class GiteeApp:
         self.owner = owner
         self.repo = repo
         self.pr_id = pr_id
-        self.root_url = f'{GiteeAddr}/{self.owner}/{self.repo}'
-        self.remark_url = f"{self.root_url}/pulls/{self.pr_id}/comments"
+        self.prefix_url = f'{GithubAddr}/{owner}/{repo}/issues/{pr_id}'
+        self.prefix_gitee_url = f'{GiteeAddr}/{owner}/{repo}/pulls/{pr_id}'
 
     @retry_decorator
-    def get_labels(self, page: int = 1, per_page: int = 100):
+    def add_comment(self, msg: str, is_github: bool = True):
         """
-        获取repo pr_id 标签
-        :param page:
-        :param per_page:
-        :return:
+        @msg: 评论内容
+        @is_github: 是否是github仓
         """
-        logging.info(f"get pr_id: {self.pr_id} labels...")
-        prefix = f'{self.root_url}/pulls/{self.pr_id}/labels'
-        url = f'{prefix}?access_token={self.token}&page={page}&per_page={per_page}'
+        if is_github:
+            url = f'{self.prefix_url}/comments'
+            logging.info(f"comment url: {url}")
+            response = requests.post(url,
+                                     json=dict(body=msg),
+                                     headers=dict(Authorization=f"token {self.token}")
+                                     )
+        else:
+            url = f'{self.prefix_gitee_url}/comments'
+            logging.info(f"comment url: {url}")
+            response = requests.post(url,
+                                     data=dict(access_token=self.token, body=msg)
+                                     )
 
-        resp = requests.get(url)
-        if resp.status_code not in [200, 201, 204]:
-            raise ConnectionError("get labels fail...")
-        return resp.json()
-
-    @retry_decorator
-    def del_labels(self, label: str):
-        """
-        删除某个标签
-        :param label:
-        :return:
-        """
-        prefix = f'{self.root_url}/pulls/{self.pr_id}/labels'
-        resp = requests.delete(url=f'{prefix}/{label}?access_token={self.token}')
-        if resp.status_code not in [200, 201, 204]:
-            raise ConnectionError("get labels fail...")
-
-    @retry_decorator
-    def add_comment(self, msg: str):
-        """
-        增加评论
-        :param msg: 评论内容
-        """
-        logging.info(f"comment url: {self.remark_url}")
-        response = requests.post(self.remark_url,
-                                 data=dict(access_token=self.token, body=msg))
-        if response.status_code not in [200, 201, 204]:
+        if response.status_code in [200, 201, 204]:
+            logging.info(f'comment success...')
+        else:
+            logging.info(response.text)
             raise ConnectionError("comment fail...")
 
-        logging.info(f'comment success')
-
     @retry_decorator
-    def get_comments(self, page: int = 1, per_page: int = 100, desc: bool = True):
+    def add_label(self, label: str, is_github: bool = True):
         """
-        获取评论
-        :param page:
-        :param per_page:
-        :param desc: 是否倒序
+        给 pr 添加标签
+        :param is_github:
+        :param label: 要增加的标签的名字
         :return:
         """
-        desc = "desc" if desc else ""
-        params = dict(access_token=self.token, page=page, per_page=per_page, direction=desc)
-        resp = requests.get(self.remark_url, params=params)
+        if is_github:
+            url = f'{self.prefix_url}/labels'
+            response = requests.post(url,
+                                     json=dict(labels=[label]),
+                                     headers=dict(Authorization=f"token {self.token}")
+                                     )
+        else:
+            url = f'{self.prefix_gitee_url}/labels?access_token={self.token}'
+            response = requests.post(url,
+                                     json=[label]
+                                     )
 
-        if resp.status_code == 200:
-            return resp.json()
-        raise ConnectionError("request comments failure..")
+        if response.status_code in [200, 201, 204]:
+            logging.info(f"add label: '{label}' success...")
+        else:
+            logging.info(response.text)
+            raise ConnectionError(f"add label '{label}' failure...")
 
     @retry_decorator
-    def del_comment(self, comment_id: str):
+    def del_label(self, label: str, is_github: bool = True):
         """
-        删除评论
-        :param comment_id:
+        删除 pr 标签
+        :param label: 待删除标签
+        :param is_github:
         :return:
         """
-        del_url = f'{self.remark_url}/{comment_id}?access_token={args.access_token}'
-        resp = requests.delete(url=del_url)
-        if resp.status_code != 200:
-            logging.error(f'delete comment failure, comment id: {comment_id}')
-            raise ConnectionError("del comment fail...")
+        no_label = ["Label does not exist", "Labels not found"]
+        if is_github:
+            url = f'{self.prefix_url}/labels/{label}'
+            response = requests.delete(url,
+                                       headers=dict(Authorization=f"token {self.token}")
+                                       )
+        else:
+            url = f'{self.prefix_gitee_url}/labels/{label}?access_token={self.token}'
+            response = requests.delete(url)
+
+        if response.status_code in [200, 201, 204]:
+            logging.info(f"delete label: '{label}' success...")
+        elif response.status_code == 404 and response.json().get("message") in no_label:
+            logging.info(f"label '{label}' not exist...")
+        else:
+            logging.info(response.text)
+            raise ConnectionError(f"delete label '{label}' failure...")
 
 
-class ChecklistApp:
+class CheckListRemark:
 
     def __init__(self,
                  token: str,
@@ -134,10 +167,14 @@ class ChecklistApp:
                  username: str,
                  subUsername: str,
                  password: str,
-                 obs_dict: str,
                  ak: str,
                  sk: str,
-                 remove_detail: str
+                 is_github: str,
+                 smtp_host: str,
+                 smtp_port: str,
+                 smtp_username: str,
+                 smtp_password: str,
+                 smtp_sender: str,
                  ):
         """
         @token: github token
@@ -147,13 +184,17 @@ class ChecklistApp:
         @project_id: codearts 项目id
         @pipeline_id: codearts 流水线id
         @pipeline_run_id: codearts 流水线任务id
-        @username: codearts 主账号
-        @subUsername: codearts 从账号
-        @password: codearts 登陆密码
-        @obs_dict: codearts obs地址
+        @username: codearts 主账户
+        @subUsername: codearts 从账户
+        @password: codearts 密码
         @ak: codearts ak
         @sk: codearts sk
-        @remove_detail: 是否删除详情列
+        @is_github: 是否为github仓
+        @smtp_host: smtp host
+        @smtp_port: smtp port
+        @smtp_username: smtp username
+        @smtp_password: smtp password
+        @smtp_sender: smtp sender
         """
         self.token = token
         self.owner = owner
@@ -165,77 +206,71 @@ class ChecklistApp:
         self.username = username
         self.subUsername = subUsername
         self.password = password
-        self.obs_dic = obs_dict
         self.ak = ak
         self.sk = sk
-        self.remove_detail = remove_detail
-        self.last_project_id = ""
-        self.last_pipeline_id = ""
-        self.last_pipeline_run_id = ""
-        self.commit_id = ""
-        self.last_pl_api_pref = ""
-        self.self_url = f'{CodeArtsDomain}/cicd/project/{project_id}/pipeline/detail/{pipeline_id}/{pipeline_run_id}'
-        self.gitee_app = GiteeApp(token, owner, repo, pr_id)
+        self.smtp_host = smtp_host
+        self.smtp_port = smtp_port
+        self.smtp_username = smtp_username
+        self.smtp_password = smtp_password
+        self.smtp_sender = smtp_sender
+        self.git_app = GithubApp(token, owner, repo, pr_id)
+        self.is_github = True if is_github.lower() == "true" else False
+        self.headers = self.get_codearts_token(username, subUsername, password)
+        self.log_path = f"/home/logs/{self.repo}/{self.pr_id}"
 
-    def get_daily_build_number(self, headers, step_run_id):
-        url = f"{self.last_pl_api_pref}/{self.last_pipeline_run_id}/steps/outputs"
-        response = requests.get(url,
-                                params={"step_run_ids": step_run_id},
-                                headers=headers)
-
-        if response.status_code == 200:
-            for entry in response.json()['step_outputs'][0]['output_result']:
-                if entry['key'] == 'dailyBuildNumber':
-                    number = entry['value']
-                    logging.info(f"daily_build_number: {number}")
-                    return number
-        else:
-            logging.error(f'请求失败,状态码: {response.status_code},相应阶段: get_daily_build_number')
-
-    @staticmethod
-    def get_build_number(headers, job_id, daily_build_number):
-        url = f'{CodeBuildAddr}/v3/jobs/{job_id}/history'
-        k = 200
-        for i in range(0, 3):
-            response = requests.get(url,
-                                    params=dict(limit=100, interval=5, offset=i),
-                                    headers=headers)
-
-            if response.status_code == 200:
-                for entry in response.json()['history_records']:
-                    if entry['record_id'] == daily_build_number:
-                        logging.info(f"build_number: {entry['build_number']}")
-                        return entry['build_number']
-
-            k = response.status_code
-        logging.error(f'请求失败,状态码: {k},相应阶段: get_build_number')
-
-    @staticmethod
-    def get_build_record_id(headers, job_id, build_number):
-        url = f'{CodeBuildAddr}/v4/jobs/{job_id}/{build_number}/record-info'
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            build_record_id = response.json()['result']['build_record_id']
-            logging.info(f"build_record_id: {build_record_id}")
-            return build_record_id
-        logging.error(f'请求失败,状态码: {response.status_code},相应阶段: get_build_record_id')
-
-    def get_codearts_token(self) -> dict:
+    @retry_decorator
+    def send_mail(self, msg: str, receivers: list):
         """
-        获取codearts token
+        发送邮件
+        :param msg: 邮件内容
+        :param receivers: 邮件接收者
         :return:
         """
-        logging.info("获取codearts token...")
-        user = dict(password=self.password, domain=dict(name=self.username), name=self.subUsername)
-        header = {
-            "auth": {
-                "identity": {"password": {"user": user}, "methods": ["password"]},
-                "scope": {"project": {"name": "cn-north-4"}}
-            }
-        }
-        resp = requests.post(url=HWLoginAPI, data=json.dumps(header))
-        token = resp.headers["X-Subject-Token"]
-        return {"x-auth-token": token}
+        subject = "%s门禁检查结果通知" % self.repo
+        receivers.extend(["shishupei@huawei.com", "zhaokunhang@huawei.com", "jun.zhongjun@huawei.com"])
+
+        receivers = list(set(receivers))
+        # 构建邮件
+        now = datetime.now()
+        formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        msg = f"代码仓{self.owner}/{self.repo}在{formatted_time}执行的门禁检查结果如下:<br/><br/>" + msg
+
+        if self.is_github:
+            url = f"https://github.com/{self.owner}/{self.repo}/pull/{self.pr_id}"
+        else:
+            url = f"https://gitee.com/{self.owner}/{self.repo}/pulls/{self.pr_id}"
+
+        msg += f"<br/>PR链接: {url}"
+        mail_msg = MIMEMultipart()
+        mail_msg['From'] = self.smtp_sender
+        mail_msg['To'] = ', '.join(receivers)
+        mail_msg['Subject'] = subject
+        mail_msg.attach(MIMEText(msg, 'html'))
+
+        # 上传附件
+        for filename in os.listdir(self.log_path):
+            logging.info(f"log filename: {filename}")
+            path = os.path.join(self.log_path, filename)
+
+            attach = MIMEApplication(open(path, 'rb').read())
+            attach.add_header('Content-Disposition', 'attachment', filename=filename)
+
+            mail_msg.attach(attach)
+
+        # 发送邮件
+        try:
+            if int(self.smtp_port) == 465:
+                server = smtplib.SMTP_SSL(self.smtp_host, int(self.smtp_port))
+                server.ehlo()
+                server.login(self.smtp_username, self.smtp_password)
+            else:
+                server = smtplib.SMTP(self.smtp_host, int(self.smtp_port))
+                server.ehlo()
+                server.starttls()
+                server.login(self.smtp_username, self.smtp_password)
+            server.sendmail(self.smtp_sender, receivers, mail_msg.as_string())
+        except Exception as e:
+            raise ConnectionError(f"send email failure: {e}")
 
     @staticmethod
     def convert_check_name_map():
@@ -248,304 +283,362 @@ class ChecklistApp:
                 res[i] = k
         return res
 
-    def download_failed_log(self, headers, job_id, job_name, step_run_id):
-        """
-        下载失败的日志至本地
-        :param headers: codearts 请求头
-        :param job_id: 任务id
-        :param job_name: 任务名称
-        :param step_run_id:
-        :return:
-        """
-        daily_build_num = self.get_daily_build_number(headers, step_run_id)
-        build_num = self.get_build_number(headers, job_id, daily_build_num)
-        record_id = self.get_build_record_id(headers, job_id, build_num)
-
-        url = f'{CodeBuildAddr}/v4/{record_id}/download-log'
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            dir_path = f'/usr1/log/{self.repo}/{self.pr_id}/'
-            os.makedirs(dir_path, exist_ok=True)
-            with open(dir_path + f'{self.pr_id}_{job_name}.txt', 'a+', encoding='UTF-8') as f:
-                f.write(response.text)
-        else:
-            logging.error(f'请求失败,状态码: {response.status_code},相应阶段: download_log')
-
-    def upload_failed_log(self):
-        subprocess.call(
-            f"""
-            cd /usr1/log
-            rm -rf {self.repo}/{self.pr_id}/codecheck*
-            obsutil config -i={self.ak} -k={self.sk} -e=obs.cn-north-4.myhuaweicloud.com
-            obsutil cp {self.repo} obs://{OBSName}/PR/ -r -f""",
-            shell=True
-        )
-
-    def find_majun_url(self, name: str) -> str:
-        """
-        从日志中匹配majun的任务链接
-        :param name: 任务名称
-        :return:
-        """
-        with open(f'/usr1/log/{self.repo}/{self.pr_id}/{self.pr_id}_{name}.txt', 'r', encoding='UTF-8') as f:
-            for line in f.readlines():
-                if MajunURL in line and f'{MajunURL}/api' not in line:
-                    urls = re.findall(URL_Pattern, line)
-                    if urls:
-                        return urls[0]
-        return ''
-
     @staticmethod
-    def generate_table(items: list, remove_detail: str):
+    def generate_table(items: list):
         """
         将检查项结果转换成html table
         """
-        packages = [x.get("package") for x in items]
-        has_pkg = bool([x for x in packages if x not in [NA, "", None]])
-
-        remove_flag = True if remove_detail.lower() == "true" else False
-
-        header, body = table_header, table_body
-        if not has_pkg:
-            header = table_header.replace("<th>出包</th>\n", "")
-            body = table_body.replace("<td>{4}</td>\n", "")
-
-        if remove_flag:
-            header = header.replace("<th>日志</th>\n", "")
-            body = body.replace("<td>{3}</td>\n", "")
-
-        html = header
+        html = TableHeader
         for item in items:
-            check_name, status = item.get("check_name"), item.get("status")
-            detail, log, package = item.get("detail"), item.get("log"), item.get("package")
-            if has_pkg and not remove_flag:
-                html += body.format(check_name, status, detail, log, package)
-            elif has_pkg and remove_flag:
-                html += body.format(check_name, status, log, package)
-            elif not has_pkg and not remove_flag:
-                html += body.format(check_name, status, detail, log)
+            check_name, status, link = item.get("check_name"), item.get("status"), item.get("link")
+            if check_name == "DT覆盖率":
+                html += TableBodyPure.format(check_name, status, link)
+            elif check_name == "流水线链接":
+                html += TableBodyURL.format(check_name, status)
+            elif not link.startswith("https"):
+                html += TableBody.replace(r'<a href="{2}">查看日志</a>', link).format(check_name, status)
             else:
-                html += body.format(check_name, status, log)
-
+                html += TableBody.format(check_name, status, link)
         html = html + "</table>"
         return html
 
-    def update_stage_comment(self, comment_table: str):
-        """更新评论"""
-        comment_data = self.gitee_app.get_comments()
-        if not comment_data:
-            return
-        for comments in comment_data:
-            comment, cid = comments["body"], comments["id"]
-            if '状态' in comment:
-                self.gitee_app.del_comment(cid)
-                break
-        self.gitee_app.add_comment(comment_table)
-
-    def get_plug_in_state(self, headers, step_run_id):
+    @staticmethod
+    def get_codearts_token(username, subUsername, password):
         """
-        :param headers: codearts 请求头
+        获取codearts token信息
+        :param username:
+        :param subUsername:
+        :param password:
+        :return:
+        """
+        logging.info("获取codearts token...")
+        user = dict(password=password, domain=dict(name=username), name=subUsername)
+        header = {
+            "auth": {
+                "identity": {
+                    "password": {"user": user},
+                    "methods": ["password"]
+                },
+                "scope": {"project": {"name": "cn-north-4"}}
+            }
+        }
+        resp = requests.post(
+            url=f"{HWIAMAddr}/v3/auth/tokens",
+            data=json.dumps(header)
+        )
+        token = resp.headers["X-Subject-Token"]
+        return {"x-auth-token": token}
+
+    def get_codecheck_statistic(self, task_id: str):
+        """
+        获取代码检查缺陷详情统计信息
+        :param task_id: 代码检查的任务id
+        :return:
+        """
+        url = f"{CodeCheckAddr}/v2/tasks/{task_id}/defects-statistic"
+        response = requests.get(url,
+                                headers=self.headers)
+        return response.json()
+
+    def get_daily_build_number(self, step_run_id):
+        """
+        获取daily_build_number, 形如 20241119.24， 因流水线可能不携带该参数，所以申明了该方法
         :param step_run_id:
         :return:
         """
-        url = f'{self.last_pl_api_pref}/{self.last_pipeline_run_id}/steps/outputs'
+        warnings.warn("get_daily_build_number is deprecated", DeprecationWarning)
+
+        url = f"{PipelineAPI}/v5/{self.project_id}/api/pipelines/{self.pipeline_id}/pipeline-runs/{self.pipeline_run_id}/steps/outputs"
         response = requests.get(url,
-                                params=dict(step_run_ids=step_run_id),
-                                headers=headers)
+                                params={"step_run_ids": step_run_id},
+                                headers=self.headers
+                                )
+        results = response.json()['step_outputs'][0]['output_result']
+        for entry in results:
+            if entry['key'] == 'dailyBuildNumber':
+                return entry['value']
 
-        res = {
-            "check_name": "dist_test_or_not",
-            "status": "9989",
-            "detail": "执行分布式用例",
-            "log": NA,
-            "package": NA
+    def get_build_number(self, job_id, daily_build_number):
+        """
+        获取构建编号，数字
+        :param job_id:
+        :param daily_build_number:
+        :return:
+        """
+        warnings.warn("get_build_number is deprecated", DeprecationWarning)
+
+        url = f'{BuildAddr}/v3/jobs/{job_id}/history'
+        response = requests.get(url,
+                                params=dict(limit=100, interval=1, offset=0),
+                                headers=self.headers
+                                )
+        records = response.json()['history_records']
+        for entry in records:
+            if entry['record_id'] == daily_build_number:
+                return entry['build_number']
+
+    def get_build_record_id(self, job_id, build_number):
+        url = f'{BuildAddr}/v4/jobs/{job_id}/{build_number}/record-info'
+        response = requests.get(url, headers=self.headers)
+        build_record_id = response.json()['result']['build_record_id']
+        return build_record_id
+
+    def get_build_log(self, job_id: str, step_run_id: str):
+        """
+        获取编译构建的代码
+        :param job_id:
+        :param step_run_id:
+        :return:
+        """
+        build_number = self.get_build_actual_task_id(job_id, step_run_id)
+        record_id = self.get_build_record_id(job_id, build_number)
+        url = f"{BuildAddr}/v4/{record_id}/download-log"
+        response = requests.get(url, headers=self.headers)
+        return response.text
+
+    def save_file(self, job_name: str, content: str) -> str:
+        """
+        保存日志文件
+        :param job_name: 任务名称
+        :param content: 文件内容
+        :return: 文件绝对路径
+        """
+        os.makedirs(self.log_path, exist_ok=True)
+        file_path = f"{self.log_path}/{self.pr_id}_{job_name}.html"
+        with open(file_path, "a+") as f:
+            f.write(content)
+        return file_path
+
+    def upload_to_obs(self, file_path: str):
+        """
+        将文件上传至obs
+        :param file_path: 文件绝对路径
+        :return:
+        """
+        subprocess.call(
+            f"""
+            cd /home/logs/{self.repo}/{self.pr_id}
+            obsutil config -i={self.ak} -k={self.sk} -e={OBSAddr}
+            obsutil cp {file_path} obs://{OBSName}/log/{self.repo}/{self.pr_id}/ -r -f
+            """,
+            shell=True
+        )
+
+    def upload_codecheck_log_to_obs(self, job_name: str, log: dict, job_link: str):
+        """
+        上传codecheck日志至obs
+        :param job_name: 任务名称
+        :param log: 日志内容
+        :param job_link: codecheck任务链接
+        :return:
+        """
+        severity = log.get("severity")
+        values = [severity.get("critical"), severity.get("major"), severity.get("minor"), severity.get("suggestion")]
+        content = CodeCheckHTML.format(*values, sum(values), job_link)
+        file_path = self.save_file(job_name, content)
+        self.upload_to_obs(file_path)
+
+    def upload_build_log_to_obs(self, job_name: str, log: str):
+        """
+        上传构建日志至obs
+        :param job_name: 任务名称
+        :param log: 日志内容
+        :return:
+        """
+        content = BuildLogHTML.format(job_name, log)
+        file_path = self.save_file(job_name, content)
+        self.upload_to_obs(file_path)
+
+    def find_coverage_rate(self, job_name: str) -> str:
+        """
+        查找覆盖率
+        :param job_name: 任务名称
+        :return:
+        """
+        file_path = f"/home/logs/{self.repo}/{self.pr_id}/{self.pr_id}_{job_name}.html"
+        with open(file_path, "r") as f:
+            for line in f.readlines():
+                if "COVERAGE=" in line:  # Go
+                    rate = line.split("=")[-1][:4]  # 只保留前四位
+                    return f"{rate.strip(' ')}%"
+                elif "Jacoco Coverge:" in line:  # Java
+                    rate = line.split(":")[-1].strip(" ").split(" ")[0][:4]
+                    return f"{rate.strip(' ')}%"
+
+    def get_mail_receives(self):
+        """
+        从配置文件获取邮件接收人列表
+        :return:
+        """
+        headers = {
+            'Authorization': f'token {self.token}',
+            'Accept': 'application/vnd.github.v3.raw'  # 请求原始内容
         }
+        try:
+            yml_url = "https://raw.githubusercontent.com/opensourceways/codearts-ci-config/main/pipeline-config.yml"
+            response = requests.get(yml_url, headers=headers)
+            response.raise_for_status()  # 如果请求失败，抛出异常
 
-        if response.status_code == 200:
-            data = response.json()['step_outputs'][0]['output_result']
-            for entry in data:
-                if entry['key'] == 'execute':
-                    execute_flag = entry['value']
-                    logging.info(f"execute_flag: {execute_flag}")
-                    if execute_flag != 'yes':
-                        res["detail"] = "未执行分布式用例"
-        else:
-            logging.error(f'请求失败,状态码: {response.status_code},相应阶段: get_plug_in_state')
-        return res
+            # 解析YAML内容
+            data = yaml.safe_load(response.text)
 
-    def get_package_link(self, name: str):
+            # 根据repo名称获取值
+            repo_info = data.get(self.repo, {})
+
+            if repo_info:
+                return repo_info["mail"].replace(" ", "").split(",")
+            else:
+                return []
+        except requests.RequestException as e:
+            logging.error(e)
+            return []
+        except yaml.YAMLError as e:
+            logging.error(e)
+            return []
+
+    def get_build_actual_task_id(self, job_id: str, step_run_id: str):
         """
-        获取包链接
-        :param name: 任务名称
+        获取codecheck真实运行的job_id
+        :param job_id: codecheck分支id
+        :param step_run_id: 流水线步骤id
         :return:
         """
-        prefix = f"https://{self.obs_dic}/{self.pr_id}"
-        if 'build_x86' in name.lower():
-            return f'<a href="{prefix}/torch_npu_x86_64.tar.gz">>>></a>'
-        elif 'build_arm' in name.lower():
-            return f'<a href="{prefix}/torch_npu_aarch64.tar.gzz">>>></a>'
-        elif 'build_libtorch' in name.lower():
-            return f'<a href="{prefix}/libtorch_npu_x86_64.tar.gz">>>></a>'
+        url = f'{PipelineAPI}/v5/{self.project_id}/api/pipelines/{self.pipeline_id}/pipeline-runs/{self.pipeline_run_id}/jobs/{job_id}/steps/{step_run_id}/jump-link'
+        response = requests.get(url,
+                                headers=self.headers
+                                )
 
-    def get_function_pipeline(self):
-        """
-        获取流水先一的信息
-        :return:
-        """
-        logging.info("获取流水线一相关信息...")
-        data = self.gitee_app.get_comments()
+        link: str = response.json().get("jumpLink", "")
+        j_id = link.split("/defects?")[0].split("/")[-1]
 
-        if not data:
-            return
-
-        for j in data:
-            comment, comment_id = j['body'], j['id']
-            if "流水线任务触发成功，正在执行，请稍候" in comment:
-                ids = comment.split("(")[-1].split(")")[0].split("/")
-                project_id, pipeline_id, pipeline_run_id = ids[-5], ids[-2], ids[-1]
-                logging.info(f'获取完毕, comment id: {comment_id}')
-                return project_id, pipeline_id, pipeline_run_id, comment_id
-
-    def del_history_remark(self):
-        """
-        删除历史评论
-        :return:
-        """
-        data = self.gitee_app.get_comments(desc=True)
-        if not data:
-            return
-
-        is_recent = True
-        for j in data:
-            comment, cid = j['body'], j['id']
-            if "流水线任务已触发" in comment:
-                self.gitee_app.del_comment(cid)
-            if "流水线任务触发成功" in comment:
-                if not is_recent:
-                    self.gitee_app.del_comment(cid)
-                is_recent = False
+        return j_id if j_id else job_id
 
     def run(self):
-        # 1. 获取codearts接口访问token
-        headers = self.get_codearts_token()
+        # 1. 解析流水线任务结果
+        result = []
+        no_failure = True
+        task_url = f'{PipelineAPI}/v5/{self.project_id}/api/pipelines/{self.pipeline_id}/pipeline-runs/detail?pipeline_run_id={self.pipeline_run_id}'
 
-        # 2. 删除历史评论
-        self.del_history_remark()
+        resp = requests.get(url=task_url, headers=self.headers)
 
-        # 3. 添加本流水线初始化评论
-        comment = f'checklist流水线任务已触发，正在执行，请稍候。<a href="{self.self_url}">任务链接[{self.pipeline_run_id}]</a>'
-        self.gitee_app.add_comment(comment)
+        logging.info(f"Get pipeline detail status: {resp.status_code}")
+        resp_txt = json.loads(resp.text)
+        gate_jobs = resp_txt["stages"][0]["jobs"]
+        for j in gate_jobs:
+            job_name, status = j["name"], j["status"]
+            logging.info(f"job name: {job_name}, status: {status}")
 
-        # 4. 删除pushed标签
-        labels_info = self.gitee_app.get_labels()
-        for info in labels_info:
-            if "pushed" in info["name"]:
-                self.gitee_app.del_labels("pushed")
+            if status == "UNSELECTED":
+                continue
 
-        # 5. 获取流水线一的信息
-        pl = self.get_function_pipeline()
-        if pl:
-            self.last_project_id, self.last_pipeline_id, self.last_pipeline_run_id, self.commit_id = pl
-
-        # 6. 解析流水线1结果
-        job_name_map = self.convert_check_name_map()
-        self.last_pl_api_pref = f"{CodeartsAPI}/{self.last_project_id}/api/pipelines/{self.last_pipeline_id}/pipeline-runs"
-        while True:
-            check_res = []
-            pipeline_detail = f'{self.last_pl_api_pref}/detail?pipeline_run_id={self.last_pipeline_run_id}'
-            resp = requests.get(pipeline_detail, headers=headers)
-            resp_text = json.loads(resp.text)
-            logging.info(f"流水线一运行状态为: {resp_text['status']}")
-
-            for stage in resp_text["stages"]:
-                for job in stage["jobs"]:
-                    name, status = job["name"], job["status"]
-                    log_link, pack_link = NA, NA
-                    standard_name = job_name_map.get(name, name)
-                    obs_log_url = f"https://{self.obs_dic}/{self.repo}/{self.pr_id}/{self.pr_id}_{name}.txt"
-                    step_run_id = job["steps"][0]["id"]
-
-                    if name in "monitor_trigger":
-                        continue
-
-                    if status in ["FAILED", "COMPLETED"]:
-                        if name != "dist_test_or_not":
-                            for entry in job["steps"][0]["inputs"]:
-                                if entry["key"] == "jobId":
-                                    job_id = entry['value']
-                                    self.download_failed_log(headers=headers,
-                                                             job_id=job_id,
-                                                             job_name=name,
-                                                             step_run_id=step_run_id
-                                                             )
-                                    self.upload_failed_log()
-                        if standard_name in ["sca", "anti_poison", "code_check"]:
-                            obs_log_url = self.find_majun_url(name)
-
-                    logging.info(f"job name: {standard_name}, obs_log_url: {obs_log_url}, status: {status}")
-
-                    log_link = f'<a href="{obs_log_url}">>>></a>'
-
-                    if self.repo == "pytorch" and status == "COMPLETED":
-                        if 'dist_test_or_not' in name.lower():
-                            tmp_dict = self.get_plug_in_state(headers, step_run_id)
-                            check_res.append(tmp_dict)
-                        if 'build' in standard_name:
-                            pack_link = self.get_package_link(name)
-
-                    info = Status_Dict.get(status)
-                    if info and name != "dist_test_or_not":
-                        check_res.append(dict(check_name=standard_name.lower(),
-                                              status=info.get("code"),
-                                              detail=info.get("detail"),
-                                              log=log_link,
-                                              package=pack_link))
-
-            comment_table = self.generate_table(check_res, self.remove_detail)
-            self.update_stage_comment(comment_table)
-
-            if resp_text["status"] != "RUNNING":
+            if job_name == "统一评论":
                 break
 
-            time.sleep(60)
+            if status != "COMPLETED":
+                no_failure = False
+
+            obs_log_url = f"{OBSDomain}/log/{self.repo}/{self.pr_id}/{self.pr_id}_{job_name}.html"
+            item = {"check_name": job_name, "status": status_map.get(status), "link": obs_log_url}
+
+            # 提取日志
+            step_run_id = j["steps"][0]["id"]
+            job_id = ""
+            for entry in j["steps"][0]["inputs"]:
+                if entry["key"] != "jobId":
+                    continue
+                job_id = entry["value"]
+
+            if "代码检查" in job_name and status == "COMPLETED":
+                job_id = self.get_build_actual_task_id(job_id, step_run_id)
+                log = self.get_codecheck_statistic(job_id)
+                url_prefix = PipelineUrl.replace('cicd', 'codechecknew')
+                job_link = f"{url_prefix}/{self.project_id}/codecheck/task/{job_id}/defects"  # codecheck任务链接
+                self.upload_codecheck_log_to_obs(job_name, log, job_link)
+
+                problems = log.get("severity", {}).get("critical", 0) + log.get("severity", {}).get("major", 0)
+                if problems > 0:
+                    no_failure = False
+                    item["status"] = status_map.get("FAILED")
+            elif "代码检查" in job_name and status != "COMPLETED":
+                item["link"] = "任务失败, 请重试"
+            else:
+                try:
+                    log = self.get_build_log(job_id, step_run_id)
+                    self.upload_build_log_to_obs(job_name, log)
+                except Exception as err:
+                    logging.error(err)
+                    item["link"] = ""
+
+            if "覆盖率" in job_name:
+                rate = self.find_coverage_rate(job_name)
+                if rate:
+                    item["check_name"] = "DT覆盖率"
+                    item["status"] = rate
+
+            result.append(item)
+
+        # 2. 统一评论
+        url_addr = f'{PipelineUrl}/{self.project_id}/pipeline/detail/{self.pipeline_id}/{self.pipeline_run_id}'
+        result.append(dict(check_name="流水线链接", status=url_addr))
+        html = self.generate_table(result)
+        self.git_app.add_comment(html, self.is_github)
+
+        # 3. 发送邮件
+        logging.info("Codearts Pipeline Failed, Send Email...")
+        receivers = self.get_mail_receives()
+        if receivers:
+            self.send_mail(html, receivers)
+
+        # 4. 添加标签
+        label = "gate_check_pass"
+        if no_failure:
+            self.git_app.add_label(label)
 
 
 def init_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--access_token', help='gitee access token', required=True, type=str)
+    parser.add_argument('--access_token', help='github access token', required=True, type=str)
     parser.add_argument('--owner', help='owner', required=True, type=str)
     parser.add_argument('--pr_id', help='pr id', required=True, type=str)
     parser.add_argument('--repo', help='code repo', required=True, type=str)
-    parser.add_argument('--username', help='codearts username', required=True, type=str)
-    parser.add_argument('--subUsername', help='codearts subUsername', required=True, type=str)
-    parser.add_argument('--password', help='codearts password', required=True, type=str)
-    parser.add_argument('--obs_dic', help='obs_dic', required=True, type=str)
-    parser.add_argument('--ak', help='ak', required=True, type=str)
-    parser.add_argument('--sk', help='sk', required=True, type=str)
     parser.add_argument('--project_id', help='current pipeline project id', type=str, default=None, required=False)
     parser.add_argument('--pipeline_id', help='current pipeline id', type=str, default=None, required=False)
     parser.add_argument('--pipeline_run_id', help='current pipeline run id', type=str, default=None, required=False)
-    parser.add_argument('--remove_detail', help='remove detail column', type=str, default="true", required=False)
+    parser.add_argument('--username', help='codearts username', required=True, type=str)
+    parser.add_argument('--subUsername', help='codearts subUsername', required=True, type=str)
+    parser.add_argument('--password', help='codearts password', required=True, type=str)
+    parser.add_argument('--ak', help='codearts ak', required=True, type=str)
+    parser.add_argument('--sk', help='codearts sk', required=True, type=str)
+    parser.add_argument('--is_github', help='is github repo', required=True, type=str)
+    parser.add_argument("--smtp_host", help="smtp host", required=True, type=str)
+    parser.add_argument("--smtp_port", help="smtp port", required=True, type=str)
+    parser.add_argument("--smtp_username", help="smtp username", required=True, type=str)
+    parser.add_argument("--smtp_password", help="smtp password", required=True, type=str)
+    parser.add_argument("--smtp_sender", help="smtp sender", required=True, type=str)
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     args = init_args()
 
-    checklist_remark = ChecklistApp(token=args.access_token,
-                                    owner=args.owner,
-                                    repo=args.repo,
-                                    pr_id=args.pr_id,
-                                    project_id=args.project_id,
-                                    pipeline_id=args.pipeline_id,
-                                    pipeline_run_id=args.pipeline_run_id,
-                                    username=args.username,
-                                    subUsername=args.subUsername,
-                                    password=args.password,
-                                    obs_dict=args.obs_dict,
-                                    ak=args.ak,
-                                    sk=args.sk,
-                                    remove_detail=args.remove_detail
-                                    )
+    checklist_remark = CheckListRemark(token=args.access_token,
+                                       owner=args.owner,
+                                       repo=args.repo,
+                                       pr_id=args.pr_id,
+                                       project_id=args.project_id,
+                                       pipeline_id=args.pipeline_id,
+                                       pipeline_run_id=args.pipeline_run_id,
+                                       username=args.username,
+                                       subUsername=args.subUsername,
+                                       password=args.password,
+                                       ak=args.ak,
+                                       sk=args.sk,
+                                       is_github=args.is_github,
+                                       smtp_host=args.smtp_host,
+                                       smtp_port=args.smtp_port,
+                                       smtp_username=args.smtp_username,
+                                       smtp_password=args.smtp_password,
+                                       smtp_sender=args.smtp_sender,
+                                       )
 
     checklist_remark.run()
