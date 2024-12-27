@@ -1,0 +1,2 @@
+# opensourceways-ascend_optimization_scripts
+Ascend社区统一评论
