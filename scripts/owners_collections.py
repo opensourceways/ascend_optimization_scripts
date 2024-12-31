@@ -53,7 +53,7 @@ class App:
         :return:
         """
         logging.info(f"parse repo {repo} OWNERS file...")
-        repo_path = f'./repos/{repo}'
+        repo_path = f'data/repos/{repo}'
         paths = os.walk(repo_path)
         for path, _, file_lst in paths:
             for filename in file_lst:
@@ -114,7 +114,7 @@ class App:
         """
         logging.info(f"write {self.enterprise} repos down...")
         repos = [x + '\n' for x in repos]
-        with open(f'./log/{self.enterprise}.txt', 'w+') as f:
+        with open(f'data/{self.enterprise}.txt', 'w+') as f:
             f.writelines(repos)
 
     @retry_decorator
@@ -154,7 +154,7 @@ class App:
         检测是否有新repo, 如果有发送邮件通知
         :return:
         """
-        path = f"./log/{self.enterprise}.txt"
+        path = f"data/{self.enterprise}.txt"
         if not os.path.exists(path):
             return
 
@@ -171,9 +171,9 @@ class App:
         # 将新增的repo写入到log文件中去
         new_repos = [x + '\n' for x in new_repos]
         today = datetime.today().strftime("%Y-%m-%d")
-        os.makedirs("./log", exist_ok=True)
+        os.makedirs("data/log", exist_ok=True)
 
-        with open(f"./log/{today}.log", 'w+') as f:
+        with open(f"data/log/{today}.log", 'w+') as f:
             f.writelines(new_repos)
 
         # 发邮件通知
