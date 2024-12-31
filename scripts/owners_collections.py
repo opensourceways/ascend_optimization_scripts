@@ -58,8 +58,7 @@ class App:
         for path, _, file_lst in paths:
             for filename in file_lst:
                 if filename == Config.TargetFileName:
-                    _path = path.replace("./repos/", "")
-                    distinct = f"./{Config.ExcludeRepo}/{_path}"
+                    distinct = path.replace("data/repos", f"./data/repos/{Config.ExcludeRepo}")
                     os.makedirs(distinct, exist_ok=True)
                     cmd = [f"cp", os.path.join(path, filename), distinct]
                     logging.info(cmd)
