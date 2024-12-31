@@ -96,7 +96,7 @@ class App:
         while True:
             logging.info(f"get page {page} repo names...")
             response = requests.get(url, params=params)
-            logging.info(f"get page {page} repo names, status code: {response.status_code}, status context: {response.text}")
+            logging.info(f"get page {page} repo names, status code: {response.status_code}")
             _repos = response.json()
             repos.extend([x.get("full_name").split("/")[-1] for x in _repos])
             total_page = response.headers.get("total_page")
