@@ -2,7 +2,7 @@
 
 repo=$1
 
-cd "./${repo}" || exit
+cd "./data/${repo}" || exit
 
 git add .
 

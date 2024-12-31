@@ -14,4 +14,4 @@ RUN cp /usr/bin/python3 /usr/bin/python
 
 WORKDIR /work/app/scripts
 
-ENTRYPOINT ["python3", "/work/app/scripts/owners_collections.py"]
+CMD ["python3", "/work/app/scripts/owners_collections.py"]

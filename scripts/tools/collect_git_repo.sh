@@ -2,7 +2,7 @@
 
 repo=$1
 url=$2
-work_dir="./repos"
+work_dir="./data/repos"
 
 mkdir -p "${work_dir}" && cd "${work_dir}" || exit
 
