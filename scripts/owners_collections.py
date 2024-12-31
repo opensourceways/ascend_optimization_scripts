@@ -1,18 +1,18 @@
 #! -*- coding: utf-8 -*-
 
 import os
+import subprocess
 import time
 import logging
 import requests
-import argparse
-import subprocess
 from datetime import datetime
 
 from smtplib import SMTP_SSL
 from email.mime.text import MIMEText
 
 from tools.utils import retry_decorator
-from conf.email_conf import Config
+from conf.email_conf import EmailConf
+from conf.email_conf import OwnersCollectionsConfig as Config
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s: %(message)s")
 
@@ -22,35 +22,16 @@ class App:
     def __init__(self,
                  enterprise: str,
                  token: str,
-                 user: str,
-                 smtp_host: str,
-                 smtp_port: str,
-                 smtp_username: str,
-                 smtp_password: str,
-                 smtp_sender: str,
-                 smtp_receiver: str
+                 user: str
                  ):
         """
-        :param enterprise:  组织
-        :param token:  gitee token
-        :param user: gitee账户
-        :param smtp_host:
-        :param smtp_port:
-        :param smtp_username:
-        :param smtp_password:
-        :param smtp_sender:
-        :param smtp_receiver: 以;分隔
+        :param enterprise: 组织
+        :param token: gitee token
+        :param token: gitee user
         """
         self.token = token
         self.enterprise = enterprise
         self.user = user
-        self.smtp_host = smtp_host
-        self.smtp_port = smtp_port
-        self.smtp_username = smtp_username
-        self.smtp_password = smtp_password
-        self.smtp_sender = smtp_sender
-        self.smtp_receiver = smtp_receiver
-
         self.base_url = "https://gitee.com/api/v5"
 
     def download_code(self, repo: str):
@@ -133,7 +114,7 @@ class App:
         """
         logging.info(f"write {self.enterprise} repos down...")
         repos = [x + '\n' for x in repos]
-        with open(f'./{self.enterprise}.txt', 'w+') as f:
+        with open(f'./log/{self.enterprise}.txt', 'w+') as f:
             f.writelines(repos)
 
     @retry_decorator
@@ -154,24 +135,26 @@ class App:
         email_body = content.replace("{{repos}}", body)
 
         msg = MIMEText(email_body, "html", _charset="utf-8")
-        msg["Subject"] = Config.EMAIL_SUBJECT
-        msg["from"] = self.smtp_sender
-        msg["to"] = self.smtp_receiver
+        msg["Subject"] = EmailConf.EMAIL_SUBJECT
+        msg["from"] = EmailConf.SMTP_SENDER
+        msg["to"] = EmailConf.SMTP_RECEIVER
 
-        with SMTP_SSL(host=self.smtp_host, port=self.smtp_port) as smtp:
-            smtp.login(user=self.smtp_username, password=self.smtp_password)
+        with SMTP_SSL(host=EmailConf.SMTP_HOST, port=EmailConf.SMTP_PORT) as smtp:
+            smtp.login(user=EmailConf.SMTP_USERNAME,
+                       password=EmailConf.SMTP_PASSWORD
+                       )
 
-            smtp.sendmail(from_addr=self.smtp_username,
-                          to_addrs=self.smtp_receiver.split(";"),
+            smtp.sendmail(from_addr=EmailConf.SMTP_USERNAME,
+                          to_addrs=EmailConf.SMTP_RECEIVER.split(";"),
                           msg=msg.as_string()
                           )
 
     def has_new_repo(self, repos: list):
         """
-        检测是否有新repo
+        检测是否有新repo, 如果有发送邮件通知
         :return:
         """
-        path = f"./{self.enterprise}.txt"
+        path = f"./log/{self.enterprise}.txt"
         if not os.path.exists(path):
             return
 
@@ -198,42 +181,29 @@ class App:
 
     def run(self):
         while True:
+            # 1. 通过接口获取所有ascend社区代码仓名称
             repos = self.get_repos()
+
+            # 2. 检测是否有新代码仓，并邮件通知CIEs
             self.has_new_repo(repos)
+
+            # 3. 将代码仓名字覆盖写至本地
             self.write_repos_down(repos)
+
+            # 4. 将owner_collections代码仓下载至本地
+            self.download_code(Config.ExcludeRepo)
+
+            # 5. 下载业务代码仓并将相应的owners文件拷贝至owner_collections
             for repo in repos:
                 if repo != Config.ExcludeRepo:
                     self.parse_repo_owners(repo)
+
+            # 6. 提交owner_collections代码仓的修改
             self.commit_code()
             logging.info(f"task done, sleep {Config.Trigger} hour for next task...")
             time.sleep(Config.Trigger * 60 * 60)
 
 
-def init_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--smtp_host', help='SMTP_HOST', type=str)
-    parser.add_argument('--smtp_port', help='SMTP_PORT', required=True, type=str)
-    parser.add_argument('--smtp_username', help='SMTP_USERNAME', required=True, type=str)
-    parser.add_argument('--smtp_password', help='SMTP_PASSWORD', required=True, type=str)
-    parser.add_argument('--smtp_sender', help='SMTP_SENDER', required=True, type=str)
-    parser.add_argument('--smtp_receiver', help='SMTP_RECEIVER, 以;隔开', required=True, type=str)
-    parser.add_argument('--access_token', help='access token', required=True, type=str)
-    parser.add_argument('--username', help='gitee username', required=True, type=str)
-    return parser.parse_args()
-
-
 if __name__ == '__main__':
-    args = init_args()
-
-    app = App(enterprise=Config.Enterprise,
-              smtp_host=args.smtp_host,
-              smtp_port=args.smtp_port,
-              smtp_username=args.smtp_username,
-              smtp_password=args.smtp_password,
-              smtp_sender=args.smtp_sender,
-              smtp_receiver=args.smtp_receiver,
-              token=args.access_token,
-              user=args.username,
-              )
-
+    app = App(enterprise=Config.Enterprise, token=Config.Token, user=Config.User)
     app.run()
