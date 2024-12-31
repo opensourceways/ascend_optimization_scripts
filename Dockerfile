@@ -8,9 +8,8 @@ WORKDIR /work/app
 
 COPY . /work/app
 
-RUN pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-
-COPY /usr/bin/python3 /usr/bin/python
+RUN pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple && \
+    cp /usr/bin/python3 /usr/bin/python
 
 WORKDIR /work/app/scripts
 
