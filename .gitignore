@@ -1,0 +1,6 @@
+.idea
+scripts/__pycache__
+scripts/test*
+test*
+scripts/data/log/*
+scripts/data/repos/*
