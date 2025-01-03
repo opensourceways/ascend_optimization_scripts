@@ -162,7 +162,8 @@ class App:
             server.login(user=EmailConf.SMTP_USERNAME,
                          password=EmailConf.SMTP_PASSWORD
                          )
-            server.sendmail(from_addr=EmailConf.SMTP_USERNAME,
+
+            server.sendmail(from_addr=EmailConf.SMTP_SENDER,
                             to_addrs=EmailConf.SMTP_RECEIVER.split(";"),
                             msg=msg.as_string()
                             )
