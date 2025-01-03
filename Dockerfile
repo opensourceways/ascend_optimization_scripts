@@ -12,9 +12,7 @@ COPY . /work/app
 
 RUN pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     cp /usr/bin/python3 /usr/bin/python && \
-    rm -rf .git requirements.txt && \
-    git config --global user.name ${GITUSER}  && \
-    git config --global user.email ${GITEMAIL}
+    rm -rf requirements.txt
 
 WORKDIR /work/app/scripts
 

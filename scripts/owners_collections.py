@@ -11,7 +11,7 @@ from smtplib import SMTP_SSL
 from email.mime.text import MIMEText
 
 from tools.utils import retry_decorator
-from conf.email_conf import EmailConf
+from conf.email_conf import EmailConf, EmailContent
 from conf.email_conf import OwnersCollectionsConfig as Config
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s: %(message)s")
@@ -124,8 +124,7 @@ class App:
         :return:
         """
         logging.info("send email...")
-        with open("./conf/email_attention.txt", 'r') as f:
-            content = f.read()
+        content = EmailContent
 
         body = ""
         for repo in repos:

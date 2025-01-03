@@ -3,4 +3,4 @@ scripts/monitor.py
 scripts/package_publish.py
 scripts/data/log/*
 scripts/data/repos/*
-
+.git
