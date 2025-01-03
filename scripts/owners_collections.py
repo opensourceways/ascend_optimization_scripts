@@ -1,13 +1,14 @@
 #! -*- coding: utf-8 -*-
 
 import os
+import smtplib
 import subprocess
 import time
 import logging
 import requests
 from datetime import datetime
 
-from smtplib import SMTP_SSL
+from smtplib import SMTP_SSL, SMTP
 from email.mime.text import MIMEText
 
 from tools.utils import retry_decorator
@@ -149,15 +150,24 @@ class App:
         msg["from"] = EmailConf.SMTP_SENDER
         msg["to"] = EmailConf.SMTP_RECEIVER
 
-        with SMTP_SSL(host=EmailConf.SMTP_HOST, port=EmailConf.SMTP_PORT) as smtp:
-            smtp.login(user=EmailConf.SMTP_USERNAME,
-                       password=EmailConf.SMTP_PASSWORD
-                       )
+        try:
+            if int(EmailConf.SMTP_PORT) == 465:
+                server = SMTP_SSL(EmailConf.SMTP_HOST, EmailConf.SMTP_PORT)
+                server.ehlo()
+            else:
+                server = SMTP(EmailConf.SMTP_HOST, EmailConf.SMTP_PORT)
+                server.ehlo()
+                server.starttls()
 
-            smtp.sendmail(from_addr=EmailConf.SMTP_USERNAME,
-                          to_addrs=EmailConf.SMTP_RECEIVER.split(";"),
-                          msg=msg.as_string()
-                          )
+            server.login(user=EmailConf.SMTP_USERNAME,
+                         password=EmailConf.SMTP_PASSWORD
+                         )
+            server.sendmail(from_addr=EmailConf.SMTP_USERNAME,
+                            to_addrs=EmailConf.SMTP_RECEIVER.split(";"),
+                            msg=msg.as_string()
+                            )
+        except smtplib.SMTPException as e:
+            logging.error(e)
 
     def has_new_repo(self, repos: list):
         """
