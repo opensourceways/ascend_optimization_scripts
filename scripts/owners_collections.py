@@ -11,10 +11,22 @@ from smtplib import SMTP_SSL
 from email.mime.text import MIMEText
 
 from tools.utils import retry_decorator
-from conf.email_conf import EmailConf, EmailContent
+from conf.email_conf import EmailConf
 from conf.email_conf import OwnersCollectionsConfig as Config
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s: %(message)s")
+
+EmailContent = """
+<p>Dear CIEs,</p>
+<span>我们检测到Ascend社区有新增的代码仓:</span>
+<br/>
+<br/>
+{{repos}}
+<br/>
+<p>请及时配置该代码仓codearts门禁流水线；如无需配置，请忽略</p>
+<span>------</span>
+<span>Ascend社区代码仓监测服务</span>
+"""
 
 
 class App:
